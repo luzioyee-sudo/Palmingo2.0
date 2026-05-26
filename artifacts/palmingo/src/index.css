@@ -1,0 +1,298 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+  PALMINGO — Laxa Identity v3 Design System
+  Brand Orange: #FF4D2E  (exact — do not substitute)
+  Ink Black:    #0A0A0F
+  Paper:        #F4F1EA
+  Muted:        #7a7a82
+  Fonts: Space Grotesk (display/700) + Inter (body/400-500)
+*/
+
+@theme inline {
+  --font-display: "Space Grotesk", "Inter", system-ui, -apple-system, sans-serif;
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 16px);
+  --radius-4xl: calc(var(--radius) + 24px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-glass: var(--glass);
+  --color-glass-border: var(--glass-border);
+}
+
+/* ═══════════════════════════════════════════════════
+   LIGHT MODE — Clean Crisp White
+═══════════════════════════════════════════════════ */
+:root {
+  --radius: 1rem;
+
+  /* Exact brand colors from Laxa Identity v3 */
+  --brand-orange:   #FF4D2E;
+  --brand-orange-2: #FFB37A;
+  --brand-ink:      #0A0A0F;
+  --brand-paper:    #F4F1EA;
+  --brand-paper-2:  #EDE8DC;
+  --brand-muted:    #7a7a82;
+
+  /* Theme — Pure White */
+  --background: #FFFFFF;
+  --foreground: #000000;
+
+  --card: rgba(255, 255, 255, 0.72);
+  --card-foreground: #000000;
+  --popover: rgba(255, 255, 255, 0.96);
+  --popover-foreground: #000000;
+
+  /* Brand orange as primary — exact */
+  --primary: #FF4D2E;
+  --primary-foreground: #FFFFFF;
+
+  --secondary: rgba(0, 0, 0, 0.04);
+  --secondary-foreground: #000000;
+  --muted: rgba(0, 0, 0, 0.05);
+  --muted-foreground: #7a7a82;
+  --accent: rgba(255, 77, 46, 0.08);
+  --accent-foreground: #FF4D2E;
+  --destructive: #dc2626;
+  --destructive-foreground: #FFFFFF;
+
+  --border: rgba(0, 0, 0, 0.08);
+  --input: rgba(0, 0, 0, 0.05);
+  --ring: #FF4D2E;
+
+  /* Glass surfaces — subtle white cards on white bg */
+  --glass: rgba(255, 255, 255, 0.65);
+  --glass-border: rgba(0, 0, 0, 0.08);
+
+  /* Gradients */
+  --gradient-aurora:
+    radial-gradient(at 20% 10%, rgba(255, 77, 46, 0.05) 0%, transparent 55%),
+    radial-gradient(at 80% 0%,  rgba(255, 107, 61, 0.04) 0%, transparent 55%),
+    radial-gradient(at 50% 95%, rgba(255, 179, 122, 0.06) 0%, transparent 60%);
+  --gradient-primary: linear-gradient(135deg, #FF4D2E 0%, #FF6B3D 100%);
+
+  /* Shadows */
+  --shadow-glass: 0 4px 24px -4px rgba(0,0,0,0.10), inset 0 1px 0 0 rgba(255,255,255,0.6);
+  --shadow-glow:  0 0 48px -12px rgba(255, 77, 46, 0.45);
+  --shadow-card:  0 2px 12px rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.05);
+}
+
+/* ═══════════════════════════════════════════════════
+   DARK MODE — True Pure Black
+═══════════════════════════════════════════════════ */
+.dark {
+  /* Theme — Pure Black */
+  --background: #000000;
+  --foreground: #FFFFFF;
+
+  --card: rgba(255, 255, 255, 0.05);
+  --card-foreground: #FFFFFF;
+  --popover: rgba(18, 18, 18, 0.97);
+  --popover-foreground: #FFFFFF;
+
+  /* Brand orange stays identical in dark mode */
+  --primary: #FF4D2E;
+  --primary-foreground: #FFFFFF;
+
+  --secondary: rgba(255, 255, 255, 0.07);
+  --secondary-foreground: #FFFFFF;
+  --muted: rgba(255, 255, 255, 0.08);
+  --muted-foreground: #7a7a82;
+  --accent: rgba(255, 77, 46, 0.12);
+  --accent-foreground: #FF4D2E;
+  --destructive: #ef4444;
+  --destructive-foreground: #FFFFFF;
+
+  --border: rgba(255, 255, 255, 0.08);
+  --input: rgba(255, 255, 255, 0.08);
+  --ring: #FF4D2E;
+
+  /* Glass surfaces — subtle white shimmer on pure black */
+  --glass: rgba(255, 255, 255, 0.055);
+  --glass-border: rgba(255, 255, 255, 0.10);
+
+  /* Gradients */
+  --gradient-aurora:
+    radial-gradient(at 20% 10%, rgba(255, 77, 46, 0.10) 0%, transparent 55%),
+    radial-gradient(at 80% 0%,  rgba(255, 107, 61, 0.08) 0%, transparent 55%),
+    radial-gradient(at 50% 95%, rgba(255, 77, 46, 0.06) 0%, transparent 60%);
+  --gradient-primary: linear-gradient(135deg, #FF4D2E 0%, #FF6B3D 100%);
+
+  /* Shadows */
+  --shadow-glass: 0 4px 24px -4px rgba(0,0,0,0.6), inset 0 1px 0 0 rgba(255,255,255,0.08);
+  --shadow-glow:  0 0 60px -12px rgba(255, 77, 46, 0.55);
+  --shadow-card:  0 2px 12px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.06);
+}
+
+/* ═══════════════════════════════════════════════════
+   BASE STYLES
+═══════════════════════════════════════════════════ */
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+  html, body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  body {
+    background-image: var(--gradient-aurora);
+    background-attachment: fixed;
+    min-height: 100vh;
+  }
+  /* Display headings → Space Grotesk */
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+    letter-spacing: -0.03em;
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   UTILITY CLASSES
+═══════════════════════════════════════════════════ */
+
+/* Glass card */
+@utility glass {
+  background-color: var(--glass);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-glass);
+}
+
+/* Stronger glass card */
+@utility glass-strong {
+  background-color: color-mix(in srgb, var(--glass) 85%, var(--background));
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-glass);
+}
+
+/* Orange gradient fill — exact brand */
+@utility gradient-primary {
+  background-image: var(--gradient-primary);
+}
+
+/* Orange glow shadow */
+@utility glow {
+  box-shadow: var(--shadow-glow);
+}
+
+/* Orange gradient text — brand accent */
+@utility text-gradient {
+  background-image: linear-gradient(135deg, #FF4D2E, #FFB37A);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+/* ═══════════════════════════════════════════════════
+   KEYFRAME ANIMATIONS
+═══════════════════════════════════════════════════ */
+
+/* Laxa sparkle entrance (matches identity v3 animation spec) */
+@keyframes sparkIn {
+  0%   { transform: scale(0) rotate(-90deg); opacity: 0; }
+  60%  { transform: scale(1.15) rotate(0deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+@keyframes miniIn {
+  0%   { transform: scale(0); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes haloPulse {
+  0%, 100% { opacity: 0.12; transform: scale(1); }
+  50%       { opacity: 0.24; transform: scale(1.12); }
+}
+@keyframes sparkPulse {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50%       { opacity: 1;   transform: scale(1.08); }
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-8px); }
+}
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+@keyframes gradient-shift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@utility float-anim { animation: float 4s ease-in-out infinite; }
+@utility shimmer-text {
+  background: linear-gradient(90deg, currentColor 25%, #FFB37A 50%, currentColor 75%);
+  background-size: 200% auto;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  animation: shimmer 3s linear infinite;
+}
+
+/* ═══════════════════════════════════════════════════
+   TUTOR / MARKDOWN SKIN
+═══════════════════════════════════════════════════ */
+.tutor-skin {
+  font-family: "Charter", "Iowan Old Style", "Source Serif Pro", Georgia, ui-serif, serif;
+  font-feature-settings: "ss01", "ss02", "kern";
+}
+.tutor-skin .md-body p,
+.tutor-skin .md-body li { font-size: 15px; line-height: 1.72; }
+.tutor-heading {
+  font-family: "Charter", "Iowan Old Style", Georgia, ui-serif, serif;
+  letter-spacing: -0.01em;
+}
+.md-body > * + * { margin-top: 0.5rem; }
+
+/* ═══════════════════════════════════════════════════
+   SCROLLBAR
+═══════════════════════════════════════════════════ */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 77, 46, 0.25);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(255, 77, 46, 0.45); }
+
+/* ═══════════════════════════════════════════════════
+   TEXT SELECTION
+═══════════════════════════════════════════════════ */
+::selection {
+  background: rgba(255, 77, 46, 0.18);
+  color: inherit;
+}

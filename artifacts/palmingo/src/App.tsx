@@ -20,6 +20,8 @@ import Chunks from "@/pages/Chunks";
 import Profile from "@/pages/Profile";
 import Settings from "@/pages/Settings";
 import Friends from "@/pages/Friends";
+import Rooms from "@/pages/Rooms";
+import Room from "@/pages/Room";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
@@ -77,6 +79,8 @@ function AppRouter() {
               <Route path="/progress" component={ProgressPage} />
               <Route path="/chunks" component={Chunks} />
               <Route path="/friends" component={Friends} />
+              <Route path="/rooms/:id" component={Room} />
+              <Route path="/rooms" component={Rooms} />
               <Route path="/profile" component={Profile} />
               <Route path="/settings" component={Settings} />
               <Route component={NotFound} />

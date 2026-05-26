@@ -1,71 +1,36 @@
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect, useCallback } from "react";
-import { Link } from "wouter";
-import {
-  Trophy, Flame, Copy, Check, Users, Swords,
-  Crown, Medal, Star, ArrowRight, Zap, Target,
-} from "lucide-react";
-import { getProgress } from "@/lib/progress";
+import { useLocation } from "wouter";
+import { Search, UserPlus, Check, X, UserMinus, Users, Clock, Swords } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { getProgress } from "@/lib/progress";
+import {
+  getMyId, getMyUsername, registerUser,
+  searchUsers, getFriends, sendFriendRequest,
+  respondToFriend, removeFriend,
+  type SocialUser, type Friendship,
+} from "@/lib/social";
+import { wsClient } from "@/lib/ws-client";
+import { BRAND_ORANGE } from "@/lib/theme";
 
-/* ── Types ─────────────────────────────────────────────── */
-interface Friend {
-  id: string;
-  name: string;
-  xp: number;
-  streak: number;
-  level: string;
-  avatar?: string;
-}
-
-/* ── Mock friends seed ─────────────────────────────────── */
-const SEED_FRIENDS: Friend[] = [
-  { id: "f1", name: "Sara M.",    xp: 420, streak: 7,  level: "B1" },
-  { id: "f2", name: "Ahmed K.",   xp: 310, streak: 5,  level: "A2" },
-  { id: "f3", name: "Lena R.",    xp: 580, streak: 12, level: "B2" },
-  { id: "f4", name: "Carlos P.",  xp: 240, streak: 3,  level: "A2" },
-  { id: "f5", name: "Yuki T.",    xp: 720, streak: 21, level: "B2" },
-  { id: "f6", name: "Fatima A.",  xp: 155, streak: 2,  level: "A1" },
-  { id: "f7", name: "Marco B.",   xp: 890, streak: 14, level: "C1" },
-];
-
-const FRIENDS_KEY = "palmingo:friends";
-
-function getStoredFriends(): Friend[] {
-  try {
-    const raw = localStorage.getItem(FRIENDS_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch { return null; }
-}
-
-function initFriends(): Friend[] {
-  const existing = getStoredFriends();
-  if (existing) return existing;
-  localStorage.setItem(FRIENDS_KEY, JSON.stringify(SEED_FRIENDS));
-  return SEED_FRIENDS;
-}
-
-function makeInviteCode(email: string): string {
-  let hash = 0;
-  for (let i = 0; i < email.length; i++) {
-    hash = (hash * 31 + email.charCodeAt(i)) & 0xfffffff;
-  }
-  return hash.toString(36).toUpperCase().padStart(6, "0").slice(0, 6);
-}
-
-/* ── Avatar bubble ─────────────────────────────────────── */
-const BRAND_ORANGE = "oklch(0.65 0.22 35)";
+/* ── Avatar ──────────────────────────────────────── */
 const COLORS = [
-  "oklch(0.65 0.2 250)", "oklch(0.7 0.2 180)", "oklch(0.68 0.22 320)",
-  "oklch(0.72 0.2 60)",  "oklch(0.65 0.22 150)", "oklch(0.7 0.2 30)",
+  "oklch(0.65 0.2 250)", "oklch(0.7 0.2 180)",
+  "oklch(0.68 0.22 320)", "oklch(0.72 0.2 60)",
+  "oklch(0.65 0.22 150)", "oklch(0.7 0.2 30)",
 ];
-
-function FriendAvatar({ name, size = 40, colorIdx = 0 }: { name: string; size?: number; colorIdx?: number }) {
-  const initials = name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+function hashColor(s: string) {
+  let h = 0;
+  for (const c of s) h = (h * 31 + c.charCodeAt(0)) & 0xffffff;
+  return COLORS[h % COLORS.length];
+}
+function UserAvatar({ username, name, size = 40 }: { username: string; name?: string; size?: number }) {
+  const initials = (name ?? username).split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
+  const col = hashColor(username);
   return (
     <div style={{
       width: size, height: size, borderRadius: "50%",
-      background: `linear-gradient(135deg, ${COLORS[colorIdx % COLORS.length]}, ${COLORS[(colorIdx + 1) % COLORS.length]})`,
+      background: `linear-gradient(135deg, ${col}, ${COLORS[(COLORS.indexOf(col) + 1) % COLORS.length]})`,
       display: "flex", alignItems: "center", justifyContent: "center",
       color: "#fff", fontWeight: 700, fontSize: size * 0.36,
       fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0,
@@ -75,350 +40,372 @@ function FriendAvatar({ name, size = 40, colorIdx = 0 }: { name: string; size?: 
   );
 }
 
-/* ── Rank medal ─────────────────────────────────────────── */
-function RankBadge({ rank }: { rank: number }) {
-  if (rank === 1) return <Crown className="w-5 h-5" style={{ color: "#F59E0B" }} />;
-  if (rank === 2) return <Medal className="w-5 h-5" style={{ color: "#94A3B8" }} />;
-  if (rank === 3) return <Medal className="w-5 h-5" style={{ color: "#CD7F32" }} />;
-  return <span className="text-sm font-bold text-muted-foreground" style={{ minWidth: 20, textAlign: "center" }}>#{rank}</span>;
-}
-
-/* ── Study Together topics ─────────────────────────────── */
-const STUDY_TOPICS = [
-  { label: "Debate a topic",   emoji: "🗣️", scenario: "Debate practice",     accent: "from-[oklch(0.65_0.2_250)] to-[oklch(0.55_0.22_280)]" },
-  { label: "Order at a café",  emoji: "☕", scenario: "Ordering at a cafe",  accent: "from-[oklch(0.75_0.18_60)] to-[oklch(0.65_0.22_30)]"  },
-  { label: "Job interview",    emoji: "💼", scenario: "Job interview",        accent: "from-[oklch(0.7_0.22_320)] to-[oklch(0.6_0.25_290)]"   },
-  { label: "Travel & airport", emoji: "✈️", scenario: "Travel & airport",    accent: "from-[oklch(0.75_0.2_180)] to-[oklch(0.65_0.22_210)]"  },
-];
-
-/* ── Main page ─────────────────────────────────────────── */
-export default function Friends() {
+/* ── Register modal ───────────────────────────────── */
+function RegisterModal({ onDone }: { onDone: () => void }) {
   const { user } = useAuth();
-  const [progress] = useState(() => getProgress());
-  const [friends]  = useState<Friend[]>(() => initFriends());
-  const [copied, setCopied]   = useState(false);
+  const [username, setUsername] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const progress = getProgress();
 
-  const inviteCode = makeInviteCode(user?.email ?? "palmingo");
-  const inviteLink = `${window.location.origin}/?invite=${inviteCode}`;
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const slug = username.toLowerCase().replace(/[^a-z0-9_]/g, "");
+    if (slug.length < 3) { setError("At least 3 characters (letters, numbers, _)"); return; }
 
-  /* Build leaderboard: friends + the user */
-  const me: Friend = {
-    id: "me",
-    name: user?.name ?? "You",
-    xp: progress.xp,
-    streak: progress.streak,
-    level: progress.level,
+    setLoading(true);
+    setError("");
+    try {
+      const id = crypto.randomUUID();
+      await registerUser({
+        id, username: slug,
+        name: user?.name ?? username,
+        xp: progress.xp, streak: progress.streak, level: progress.level,
+      });
+      wsClient.connect();
+      onDone();
+    } catch (err: unknown) {
+      const e = err as { data?: { error?: string } };
+      if (e?.data?.error === "username_taken") setError("Username already taken, try another");
+      else setError("Something went wrong");
+    } finally { setLoading(false); }
   };
 
-  const board = [...friends, me].sort((a, b) => b.xp - a.xp);
-  const myRank = board.findIndex(f => f.id === "me") + 1;
-  const myColorIdx = board.findIndex(f => f.id === "me");
+  return (
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 100,
+      background: "rgba(0,0,0,0.6)", backdropFilter: "blur(8px)",
+      display: "flex", alignItems: "center", justifyContent: "center", padding: 16,
+    }}>
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+        style={{
+          background: "var(--background)", borderRadius: 24,
+          padding: 32, maxWidth: 400, width: "100%",
+          border: "1px solid var(--border)", boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+        }}
+      >
+        <div className="text-4xl text-center mb-2">👥</div>
+        <h2 className="font-display font-bold text-2xl text-center mb-1">Choose your username</h2>
+        <p className="text-sm text-muted-foreground text-center mb-6">
+          Your unique handle so friends can find you.
+        </p>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <div style={{
+              display: "flex", alignItems: "center", gap: 8,
+              background: "var(--secondary)", borderRadius: 12,
+              border: `1.5px solid ${error ? "oklch(0.6 0.22 25)" : "var(--border)"}`,
+              padding: "0 14px", overflow: "hidden",
+            }}>
+              <span className="text-muted-foreground text-sm font-mono">@</span>
+              <input
+                value={username}
+                onChange={e => { setUsername(e.target.value); setError(""); }}
+                placeholder="your_username"
+                style={{
+                  flex: 1, background: "transparent", border: "none", outline: "none",
+                  padding: "12px 0", fontSize: 16, fontFamily: "'Space Grotesk', sans-serif",
+                  color: "var(--foreground)",
+                }}
+              />
+            </div>
+            {error && <p className="text-xs mt-1.5" style={{ color: "oklch(0.6 0.22 25)" }}>{error}</p>}
+          </div>
+          <button
+            type="submit"
+            disabled={loading || username.length < 3}
+            style={{
+              width: "100%",
+              background: `linear-gradient(135deg, ${BRAND_ORANGE}, #FF6B3D)`,
+              color: "#fff", border: "none", borderRadius: 12,
+              padding: "13px", cursor: "pointer",
+              fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 15,
+              opacity: loading || username.length < 3 ? 0.6 : 1,
+              transition: "all 0.2s",
+            }}
+          >
+            {loading ? "Setting up…" : "Get Started →"}
+          </button>
+        </form>
+      </motion.div>
+    </div>
+  );
+}
 
-  /* Weekly XP: simulate weekly progress for friends (capped at some value) */
-  const weeklyGoal = 500;
-  const myWeeklyXp = Math.min(weeklyGoal, Math.round(progress.xp * 0.18));
-  const topFriend  = friends.sort((a, b) => b.xp - a.xp)[0];
-  const topFriendWeekly = Math.min(weeklyGoal, Math.round(topFriend.xp * 0.18));
+/* ── Main page ────────────────────────────────────── */
+export default function Friends() {
+  const [, navigate] = useLocation();
+  const [registered, setRegistered] = useState(() => !!getMyId());
+  const [friends, setFriends] = useState<Friendship[]>([]);
+  const [searchQ, setSearchQ] = useState("");
+  const [searchResults, setSearchResults] = useState<SocialUser[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [pending, setPending] = useState<Friendship[]>([]);
+  const [sent, setSent] = useState<Friendship[]>([]);
+  const [accepted, setAccepted] = useState<Friendship[]>([]);
+  const myId = getMyId();
+  const myUsername = getMyUsername();
 
-  const handleCopy = useCallback(async () => {
+  const loadFriends = useCallback(async () => {
+    if (!myId) return;
+    const all = await getFriends().catch(() => []);
+    setFriends(all);
+    setPending(all.filter(f => f.status === "pending" && f.direction === "received"));
+    setSent(all.filter(f => f.status === "pending" && f.direction === "sent"));
+    setAccepted(all.filter(f => f.status === "accepted"));
+  }, [myId]);
+
+  useEffect(() => { if (registered) loadFriends(); }, [registered, loadFriends]);
+
+  const doSearch = useCallback(async () => {
+    if (!searchQ.trim()) { setSearchResults([]); return; }
+    setSearching(true);
     try {
-      if (navigator.share) {
-        await navigator.share({ title: "Join me on Palmingo!", url: inviteLink });
-      } else {
-        await navigator.clipboard.writeText(inviteLink);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2500);
-      }
-    } catch {
-      try {
-        await navigator.clipboard.writeText(inviteLink);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2500);
-      } catch {}
-    }
-  }, [inviteLink]);
+      const r = await searchUsers(searchQ);
+      // Filter out existing friends
+      const friendIds = new Set(friends.map(f => f.requesterId === myId ? f.addresseeId : f.requesterId));
+      setSearchResults(r.filter(u => !friendIds.has(u.id)));
+    } catch {} finally { setSearching(false); }
+  }, [searchQ, friends, myId]);
+
+  useEffect(() => {
+    const t = setTimeout(doSearch, 400);
+    return () => clearTimeout(t);
+  }, [doSearch]);
+
+  const addFriend = async (addresseeId: string) => {
+    await sendFriendRequest(addresseeId).catch(() => null);
+    setSearchResults(r => r.filter(u => u.id !== addresseeId));
+    await loadFriends();
+  };
+
+  const respond = async (fid: string, accept: boolean) => {
+    await respondToFriend(fid, accept);
+    await loadFriends();
+  };
+
+  const remove = async (fid: string) => {
+    await removeFriend(fid);
+    await loadFriends();
+  };
+
+  if (!registered) {
+    return <RegisterModal onDone={() => setRegistered(true)} />;
+  }
 
   return (
-    <div className="space-y-6 pb-6">
-      {/* ── Header ── */}
+    <div className="space-y-6">
       <header>
-        <h1 className="text-3xl md:text-4xl font-bold">Learn with Friends</h1>
-        <p className="text-muted-foreground text-sm mt-1">Compete, invite, and study together.</p>
+        <h1 className="text-3xl md:text-4xl font-bold">Friends</h1>
+        <p className="text-muted-foreground text-sm mt-1">
+          @{myUsername} · Search, connect, and learn together.
+        </p>
       </header>
 
-      {/* ── My rank card ── */}
-      <motion.div
-        initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0 }}
-        className="glass rounded-3xl p-5 flex items-center gap-4"
-      >
-        <div className="relative">
-          <FriendAvatar name={me.name} size={56} colorIdx={myColorIdx} />
-          <div style={{
-            position: "absolute", bottom: -4, right: -4,
-            background: `linear-gradient(135deg, ${BRAND_ORANGE}, #FF6B3D)`,
-            borderRadius: "50%", width: 22, height: 22,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            border: "2px solid var(--background)",
-          }}>
-            <Star className="w-3 h-3 text-white" />
-          </div>
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="font-display font-semibold text-lg truncate">{me.name}</div>
-          <div className="text-sm text-muted-foreground">Rank #{myRank} among friends · {me.level}</div>
-        </div>
-        <div className="flex flex-col items-end gap-1">
-          <div className="flex items-center gap-1.5">
-            <Trophy className="w-4 h-4" style={{ color: BRAND_ORANGE }} />
-            <span className="font-display font-bold text-xl">{me.xp}</span>
-          </div>
-          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-            <Flame className="w-3 h-3 text-orange-400" />
-            {me.streak}d streak
-          </div>
-        </div>
-      </motion.div>
-
-      {/* ── Leaderboard ── */}
-      <motion.div
-        initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}
-        className="glass rounded-3xl p-5"
-      >
-        <div className="flex items-center gap-2 mb-4">
-          <Trophy className="w-5 h-5" style={{ color: BRAND_ORANGE }} />
-          <h2 className="font-display font-semibold text-lg">Leaderboard</h2>
-        </div>
-
-        <div className="flex flex-col gap-1.5">
-          {board.map((friend, idx) => {
-            const rank   = idx + 1;
-            const isMe   = friend.id === "me";
-            const colorI = idx;
-            const maxXp  = board[0].xp || 1;
-
-            return (
-              <motion.div
-                key={friend.id}
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.08 + idx * 0.04 }}
-                style={{
-                  display: "flex", alignItems: "center", gap: 12,
-                  padding: "10px 12px", borderRadius: 14,
-                  background: isMe
-                    ? `linear-gradient(135deg, rgba(255,77,46,0.12), rgba(255,107,61,0.06))`
-                    : "transparent",
-                  border: isMe ? "1px solid rgba(255,77,46,0.25)" : "1px solid transparent",
-                  transition: "all 0.2s",
-                }}
-              >
-                {/* Rank */}
-                <div style={{ width: 28, display: "flex", justifyContent: "center", flexShrink: 0 }}>
-                  <RankBadge rank={rank} />
-                </div>
-
-                {/* Avatar */}
-                <FriendAvatar name={friend.name} size={36} colorIdx={colorI} />
-
-                {/* Name + bar */}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{
-                    fontSize: 14, fontWeight: isMe ? 700 : 500,
-                    fontFamily: "'Space Grotesk', sans-serif",
-                    color: "var(--foreground)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                  }}>
-                    {isMe ? `${friend.name} (you)` : friend.name}
-                  </div>
-                  <div style={{
-                    marginTop: 4, height: 4, borderRadius: 99,
-                    background: "var(--muted)", overflow: "hidden",
-                  }}>
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${(friend.xp / maxXp) * 100}%` }}
-                      transition={{ delay: 0.2 + idx * 0.04, duration: 0.6 }}
-                      style={{
-                        height: "100%", borderRadius: 99,
-                        background: isMe
-                          ? `linear-gradient(90deg, ${BRAND_ORANGE}, #FF6B3D)`
-                          : `linear-gradient(90deg, ${COLORS[colorI % COLORS.length]}, ${COLORS[(colorI+1)%COLORS.length]})`,
-                      }}
-                    />
-                  </div>
-                </div>
-
-                {/* XP */}
-                <div style={{ fontSize: 14, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif", color: "var(--foreground)", flexShrink: 0 }}>
-                  {friend.xp.toLocaleString()} XP
-                </div>
-              </motion.div>
-            );
-          })}
-        </div>
-      </motion.div>
-
-      {/* ── Weekly Challenge ── */}
-      <motion.div
-        initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-        className="glass rounded-3xl p-5"
-      >
-        <div className="flex items-center gap-2 mb-1">
-          <Swords className="w-5 h-5" style={{ color: BRAND_ORANGE }} />
-          <h2 className="font-display font-semibold text-lg">Weekly Challenge</h2>
-          <span className="ml-auto text-xs text-muted-foreground">Resets Sunday</span>
-        </div>
-        <p className="text-sm text-muted-foreground mb-4">Who earns the most XP this week?</p>
-
-        {/* You vs top friend */}
-        <div className="flex flex-col gap-3">
-          {/* Me */}
-          <div className="flex items-center gap-3">
-            <FriendAvatar name={me.name} size={32} colorIdx={0} />
-            <div className="flex-1">
-              <div className="flex justify-between text-xs mb-1">
-                <span className="font-medium" style={{ color: "var(--foreground)" }}>You</span>
-                <span className="text-muted-foreground">{myWeeklyXp} / {weeklyGoal} XP</span>
-              </div>
-              <div className="h-2.5 rounded-full overflow-hidden" style={{ background: "var(--muted)" }}>
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${(myWeeklyXp / weeklyGoal) * 100}%` }}
-                  transition={{ delay: 0.3, duration: 0.7 }}
-                  className="h-full gradient-primary"
-                  style={{ borderRadius: 99 }}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Top friend */}
-          <div className="flex items-center gap-3">
-            <FriendAvatar name={topFriend.name} size={32} colorIdx={2} />
-            <div className="flex-1">
-              <div className="flex justify-between text-xs mb-1">
-                <span className="font-medium" style={{ color: "var(--foreground)" }}>{topFriend.name}</span>
-                <span className="text-muted-foreground">{topFriendWeekly} / {weeklyGoal} XP</span>
-              </div>
-              <div className="h-2.5 rounded-full overflow-hidden" style={{ background: "var(--muted)" }}>
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${(topFriendWeekly / weeklyGoal) * 100}%` }}
-                  transition={{ delay: 0.35, duration: 0.7 }}
-                  style={{
-                    height: "100%", borderRadius: 99,
-                    background: `linear-gradient(90deg, oklch(0.68 0.22 320), oklch(0.58 0.25 290))`,
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-4 text-center">
-          {myWeeklyXp >= topFriendWeekly
-            ? <p className="text-sm font-medium" style={{ color: BRAND_ORANGE }}>🔥 You're winning this week! Keep it up.</p>
-            : <p className="text-sm text-muted-foreground">
-                You need <strong>{topFriendWeekly - myWeeklyXp} more XP</strong> to beat {topFriend.name}!
-              </p>
-          }
-          <Link
-            to="/home"
-            className="inline-flex mt-3 items-center gap-2 gradient-primary text-white px-5 py-2.5 rounded-2xl text-sm font-medium"
-          >
-            <Zap className="w-4 h-4" /> Earn XP now
-          </Link>
-        </div>
-      </motion.div>
-
-      {/* ── Study Together ── */}
-      <motion.div
-        initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
-      >
-        <div className="flex items-center gap-2 mb-3">
-          <Target className="w-5 h-5" style={{ color: BRAND_ORANGE }} />
-          <h2 className="font-display font-semibold text-lg">Study Together</h2>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          {STUDY_TOPICS.map((topic, i) => (
-            <motion.div
-              key={topic.label}
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.18 + i * 0.04 }}
-            >
-              <Link
-                to={`/laxa?scenario=${encodeURIComponent(topic.scenario)}`}
-                className="glass rounded-2xl p-4 block group hover:scale-[1.02] transition"
-                style={{ textDecoration: "none" }}
-              >
-                <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${topic.accent} flex items-center justify-center text-xl`}>
-                  {topic.emoji}
-                </div>
-                <div className="mt-3 font-display font-semibold text-sm" style={{ color: "var(--foreground)" }}>
-                  {topic.label}
-                </div>
-                <div className="mt-1.5 flex items-center gap-1 text-xs" style={{ color: BRAND_ORANGE }}>
-                  Practice with Laxa <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition" />
-                </div>
-              </Link>
-            </motion.div>
-          ))}
-        </div>
-      </motion.div>
-
-      {/* ── Invite Friends ── */}
-      <motion.div
-        initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
-        className="glass rounded-3xl p-5"
-      >
-        <div className="flex items-center gap-2 mb-1">
-          <Users className="w-5 h-5" style={{ color: BRAND_ORANGE }} />
-          <h2 className="font-display font-semibold text-lg">Invite Friends</h2>
-        </div>
-        <p className="text-sm text-muted-foreground mb-4">
-          Share your invite link and compete together on the leaderboard.
-        </p>
-
-        {/* Invite code display */}
-        <div style={{
-          background: "var(--secondary)",
-          border: "1px dashed var(--border)",
-          borderRadius: 14, padding: "10px 16px",
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          marginBottom: 12,
-        }}>
-          <div>
-            <div className="text-xs text-muted-foreground mb-0.5">Your invite code</div>
-            <div className="font-display font-bold text-xl tracking-widest" style={{ color: BRAND_ORANGE }}>
-              {inviteCode}
-            </div>
-          </div>
-          <div className="text-xs text-muted-foreground" style={{ maxWidth: 140, textAlign: "right", wordBreak: "break-all" }}>
-            {inviteLink.replace("https://", "")}
-          </div>
-        </div>
-
+      {/* Quick actions */}
+      <div className="flex gap-3 flex-wrap">
         <button
-          onClick={handleCopy}
+          onClick={() => navigate("/rooms")}
           style={{
-            width: "100%",
-            background: copied
-              ? "oklch(0.55 0.18 150)"
-              : `linear-gradient(135deg, ${BRAND_ORANGE}, #FF6B3D)`,
+            display: "flex", alignItems: "center", gap: 8,
+            background: `linear-gradient(135deg, ${BRAND_ORANGE}, #FF6B3D)`,
             color: "#fff", border: "none", borderRadius: 14,
-            padding: "13px 20px", cursor: "pointer",
+            padding: "10px 18px", cursor: "pointer",
             fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 14,
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-            transition: "all 0.25s",
             boxShadow: "0 4px 14px rgba(255,77,46,0.3)",
           }}
         >
-          {copied
-            ? <><Check className="w-4 h-4" /> Link copied!</>
-            : <><Copy className="w-4 h-4" /> Copy invite link</>
-          }
+          <Users className="w-4 h-4" /> Learning Rooms
         </button>
-      </motion.div>
+        <button
+          onClick={() => navigate("/rooms?type=war")}
+          style={{
+            display: "flex", alignItems: "center", gap: 8,
+            background: "var(--secondary)", border: "1px solid var(--border)",
+            borderRadius: 14, padding: "10px 18px", cursor: "pointer",
+            fontFamily: "'Space Grotesk', sans-serif", fontWeight: 500, fontSize: 14,
+            color: "var(--foreground)",
+          }}
+        >
+          <Swords className="w-4 h-4" style={{ color: BRAND_ORANGE }} /> Learning Wars
+        </button>
+      </div>
+
+      {/* Search */}
+      <div className="glass rounded-3xl p-5">
+        <h2 className="font-display font-semibold text-lg mb-3 flex items-center gap-2">
+          <Search className="w-4 h-4" style={{ color: BRAND_ORANGE }} /> Find Friends
+        </h2>
+        <div style={{
+          display: "flex", alignItems: "center", gap: 10,
+          background: "var(--secondary)", borderRadius: 12,
+          border: "1px solid var(--border)", padding: "4px 14px",
+        }}>
+          <Search className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
+          <input
+            value={searchQ}
+            onChange={e => setSearchQ(e.target.value)}
+            placeholder="Search by username…"
+            style={{
+              flex: 1, background: "transparent", border: "none", outline: "none",
+              padding: "10px 0", fontSize: 14, color: "var(--foreground)",
+              fontFamily: "'Space Grotesk', sans-serif",
+            }}
+          />
+          {searching && <div className="w-4 h-4 border-2 rounded-full animate-spin" style={{ borderColor: `${BRAND_ORANGE} transparent` }} />}
+        </div>
+
+        <AnimatePresence>
+          {searchResults.length > 0 && (
+            <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mt-3 space-y-2">
+              {searchResults.map(u => (
+                <div key={u.id} style={{
+                  display: "flex", alignItems: "center", gap: 10,
+                  padding: "10px 12px", borderRadius: 12,
+                  background: "var(--secondary)", border: "1px solid var(--border)",
+                }}>
+                  <UserAvatar username={u.username} name={u.name} size={36} />
+                  <div style={{ flex: 1 }}>
+                    <div className="font-medium text-sm" style={{ color: "var(--foreground)" }}>{u.name}</div>
+                    <div className="text-xs text-muted-foreground">@{u.username} · {u.level} · {u.xp} XP</div>
+                  </div>
+                  <button onClick={() => addFriend(u.id)} style={{
+                    background: `linear-gradient(135deg, ${BRAND_ORANGE}, #FF6B3D)`,
+                    color: "#fff", border: "none", borderRadius: 10,
+                    padding: "7px 12px", cursor: "pointer",
+                    fontSize: 12, fontWeight: 600,
+                    fontFamily: "'Space Grotesk', sans-serif",
+                  }}>
+                    <UserPlus className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Pending requests */}
+      {pending.length > 0 && (
+        <div className="glass rounded-3xl p-5">
+          <h2 className="font-display font-semibold text-lg mb-3 flex items-center gap-2">
+            <Clock className="w-4 h-4" style={{ color: BRAND_ORANGE }} /> Friend Requests
+            <span style={{
+              background: BRAND_ORANGE, color: "#fff",
+              borderRadius: 99, padding: "1px 8px", fontSize: 12, fontWeight: 700,
+            }}>{pending.length}</span>
+          </h2>
+          <div className="space-y-2">
+            {pending.map(f => (
+              <div key={f.id} style={{
+                display: "flex", alignItems: "center", gap: 10,
+                padding: "10px 12px", borderRadius: 12,
+                background: "rgba(255,77,46,0.06)", border: "1px solid rgba(255,77,46,0.2)",
+              }}>
+                <UserAvatar username={f.other?.username ?? "?"} name={f.other?.name} size={36} />
+                <div style={{ flex: 1 }}>
+                  <div className="font-medium text-sm" style={{ color: "var(--foreground)" }}>{f.other?.name}</div>
+                  <div className="text-xs text-muted-foreground">@{f.other?.username}</div>
+                </div>
+                <button onClick={() => respond(f.id, true)} style={{
+                  background: `linear-gradient(135deg, ${BRAND_ORANGE}, #FF6B3D)`,
+                  color: "#fff", border: "none", borderRadius: 8, padding: "7px",
+                  cursor: "pointer",
+                }}>
+                  <Check className="w-4 h-4" />
+                </button>
+                <button onClick={() => respond(f.id, false)} style={{
+                  background: "var(--secondary)", border: "1px solid var(--border)",
+                  borderRadius: 8, padding: "7px", cursor: "pointer", color: "var(--muted-foreground)",
+                }}>
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Friends list */}
+      <div className="glass rounded-3xl p-5">
+        <h2 className="font-display font-semibold text-lg mb-3 flex items-center gap-2">
+          <Users className="w-4 h-4" style={{ color: BRAND_ORANGE }} /> My Friends
+          <span className="text-muted-foreground text-sm font-normal">({accepted.length})</span>
+        </h2>
+
+        {accepted.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-8">
+            No friends yet — search for someone above!
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {accepted.map((f, i) => (
+              <motion.div
+                key={f.id}
+                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
+                style={{
+                  display: "flex", alignItems: "center", gap: 10,
+                  padding: "10px 12px", borderRadius: 12,
+                  background: "var(--secondary)", border: "1px solid var(--border)",
+                }}
+              >
+                <UserAvatar username={f.other?.username ?? "?"} name={f.other?.name} size={40} />
+                <div style={{ flex: 1 }}>
+                  <div className="font-semibold text-sm" style={{ color: "var(--foreground)" }}>{f.other?.name}</div>
+                  <div className="text-xs text-muted-foreground">@{f.other?.username} · {f.other?.level} · {f.other?.xp} XP</div>
+                </div>
+                <button
+                  onClick={() => navigate("/rooms")}
+                  style={{
+                    background: "var(--background)", border: "1px solid var(--border)",
+                    borderRadius: 8, padding: "7px 12px", cursor: "pointer",
+                    fontSize: 12, fontFamily: "'Space Grotesk', sans-serif",
+                    color: "var(--foreground)",
+                  }}
+                >
+                  📚 Study
+                </button>
+                <button onClick={() => remove(f.id)} style={{
+                  background: "transparent", border: "none", padding: 6,
+                  cursor: "pointer", color: "var(--muted-foreground)",
+                }}>
+                  <UserMinus className="w-4 h-4" />
+                </button>
+              </motion.div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Sent requests */}
+      {sent.length > 0 && (
+        <div className="glass rounded-3xl p-5">
+          <h2 className="font-display font-semibold text-base mb-3 text-muted-foreground">Sent Requests</h2>
+          <div className="space-y-2">
+            {sent.map(f => (
+              <div key={f.id} style={{
+                display: "flex", alignItems: "center", gap: 10,
+                padding: "10px 12px", borderRadius: 12,
+                background: "var(--secondary)", border: "1px solid var(--border)",
+                opacity: 0.7,
+              }}>
+                <UserAvatar username={f.other?.username ?? "?"} size={32} />
+                <div style={{ flex: 1 }}>
+                  <div className="text-sm font-medium" style={{ color: "var(--foreground)" }}>@{f.other?.username}</div>
+                  <div className="text-xs text-muted-foreground">Pending…</div>
+                </div>
+                <button onClick={() => remove(f.id)} style={{
+                  background: "transparent", border: "none", padding: 6,
+                  cursor: "pointer", color: "var(--muted-foreground)",
+                }}>
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

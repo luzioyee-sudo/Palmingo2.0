@@ -31,6 +31,22 @@ function IconFriends({ active }: { active: boolean }) {
   );
 }
 
+function IconRooms({ active }: { active: boolean }) {
+  const c = active ? "#fff" : BRAND_ORANGE;
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" stroke={c} strokeWidth={active ? 2 : 1.7}
+        fill={active ? "rgba(255,255,255,0.1)" : "none"} />
+      <circle cx="12" cy="12" r="3.5" stroke={c} strokeWidth={active ? 2 : 1.6}
+        fill={active ? "rgba(255,255,255,0.2)" : "none"} />
+      <path d="M12 3 L12 8.5" stroke={c} strokeWidth="1.5" />
+      <path d="M12 15.5 L12 21" stroke={c} strokeWidth="1.5" />
+      <path d="M3 12 L8.5 12" stroke={c} strokeWidth="1.5" />
+      <path d="M15.5 12 L21 12" stroke={c} strokeWidth="1.5" />
+    </svg>
+  );
+}
+
 const mainNav = [
   { to: "/home",       label: "Home",       tKey: "home",       icon: IconHome },
   { to: "/flashcards", label: "Cards",      tKey: "cards",      icon: IconCards },
@@ -38,6 +54,7 @@ const mainNav = [
   { to: "/chunks",     label: "Topics",     tKey: "topics",     icon: IconTopics },
   { to: "/videos",     label: "Videos",     tKey: "videos",     icon: IconVideos },
   { to: "/friends",    label: "Friends",    tKey: "friends",    icon: IconFriends },
+  { to: "/rooms",      label: "Rooms",      tKey: "rooms",      icon: IconRooms },
   { to: "/laxa",       label: "Laxa AI",    tKey: "laxa_ai",    icon: IconLaxa },
 ] as const;
 

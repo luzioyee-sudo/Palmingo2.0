@@ -1,1 +1,2 @@
 - [Palmingo architecture](palmingo-arch.md) — localStorage auth, wouter routing, CSS dark mode, /laxa = Tutor page, ai routes at /api/ai/*
+- [Social Platform Architecture](social-platform.md) — WebSocket path, WebRTC mesh topology, UUID validation, DB schema, admin controls.

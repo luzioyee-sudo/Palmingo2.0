@@ -17,12 +17,27 @@ import { BRAND_ORANGE } from "@/lib/theme";
 const HOME_PAGE = "/home";
 const LAXA_PAGE = "/laxa";
 
+function IconFriends({ active }: { active: boolean }) {
+  const c = active ? "#fff" : BRAND_ORANGE;
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="9" cy="7" r="3.2" stroke={c} strokeWidth={active ? 2 : 1.7}
+        fill={active ? "rgba(255,255,255,0.15)" : "none"} />
+      <path d="M2 20c0-3.5 3.1-5.5 7-5.5s7 2 7 5.5" stroke={c} strokeWidth={active ? 2 : 1.7} />
+      <circle cx="18" cy="8" r="2.3" stroke={c} strokeWidth="1.5"
+        fill={active ? "rgba(255,255,255,0.10)" : "none"} />
+      <path d="M15.5 20c0-2.5 1.8-4 4.5-4" stroke={c} strokeWidth="1.4" opacity="0.7" />
+    </svg>
+  );
+}
+
 const mainNav = [
   { to: "/home",       label: "Home",       tKey: "home",       icon: IconHome },
   { to: "/flashcards", label: "Cards",      tKey: "cards",      icon: IconCards },
   { to: "/dictionary", label: "Dictionary", tKey: "dictionary", icon: IconDictionary },
   { to: "/chunks",     label: "Topics",     tKey: "topics",     icon: IconTopics },
   { to: "/videos",     label: "Videos",     tKey: "videos",     icon: IconVideos },
+  { to: "/friends",    label: "Friends",    tKey: "friends",    icon: IconFriends },
   { to: "/laxa",       label: "Laxa AI",    tKey: "laxa_ai",    icon: IconLaxa },
 ] as const;
 

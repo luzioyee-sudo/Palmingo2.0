@@ -19,6 +19,7 @@ import ProgressPage from "@/pages/Progress";
 import Chunks from "@/pages/Chunks";
 import Profile from "@/pages/Profile";
 import Settings from "@/pages/Settings";
+import Friends from "@/pages/Friends";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
@@ -75,6 +76,7 @@ function AppRouter() {
               <Route path="/videos" component={Videos} />
               <Route path="/progress" component={ProgressPage} />
               <Route path="/chunks" component={Chunks} />
+              <Route path="/friends" component={Friends} />
               <Route path="/profile" component={Profile} />
               <Route path="/settings" component={Settings} />
               <Route component={NotFound} />

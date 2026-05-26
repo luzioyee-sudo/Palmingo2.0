@@ -1,0 +1,1 @@
+- [Palmingo architecture](palmingo-arch.md) — localStorage auth, wouter routing, CSS dark mode, /laxa = Tutor page, ai routes at /api/ai/*

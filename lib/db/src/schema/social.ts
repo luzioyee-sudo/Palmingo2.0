@@ -6,6 +6,8 @@ export const friendshipStatusEnum = pgEnum("friendship_status", ["pending", "acc
 export const roomTypeEnum         = pgEnum("room_type",         ["war", "voice"]);
 export const memberRoleEnum       = pgEnum("member_role",       ["admin", "moderator", "member"]);
 export const msgTypeEnum          = pgEnum("msg_type",          ["text", "system", "challenge"]);
+export const postTypeEnum         = pgEnum("post_type",         ["text", "image", "room_share"]);
+export const dmTypeEnum           = pgEnum("dm_type",           ["text", "room_share"]);
 
 export const socialUsers = pgTable("social_users", {
   id:        uuid("id").primaryKey().defaultRandom(),
@@ -56,8 +58,47 @@ export const roomMessages = pgTable("room_messages", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export type SocialUser   = typeof socialUsers.$inferSelect;
-export type Room         = typeof rooms.$inferSelect;
-export type RoomMember   = typeof roomMembers.$inferSelect;
-export type RoomMessage  = typeof roomMessages.$inferSelect;
-export type Friendship   = typeof friendships.$inferSelect;
+/* ── Posts & Feed ─────────────────────────────────── */
+export const posts = pgTable("posts", {
+  id:           uuid("id").primaryKey().defaultRandom(),
+  authorId:     uuid("author_id").notNull().references(() => socialUsers.id, { onDelete: "cascade" }),
+  content:      text("content").notNull(),
+  imageUrl:     text("image_url"),
+  postType:     postTypeEnum("post_type").notNull().default("text"),
+  roomId:       uuid("room_id").references(() => rooms.id, { onDelete: "set null" }),
+  roomName:     text("room_name"),
+  inviteCode:   text("invite_code"),
+  likesCount:   integer("likes_count").notNull().default(0),
+  createdAt:    timestamp("created_at").defaultNow().notNull(),
+});
+
+export const postLikes = pgTable("post_likes", {
+  id:        uuid("id").primaryKey().defaultRandom(),
+  postId:    uuid("post_id").notNull().references(() => posts.id, { onDelete: "cascade" }),
+  userId:    uuid("user_id").notNull().references(() => socialUsers.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+/* ── Direct Messages ──────────────────────────────── */
+export const directMessages = pgTable("direct_messages", {
+  id:          uuid("id").primaryKey().defaultRandom(),
+  fromId:      uuid("from_id").notNull().references(() => socialUsers.id, { onDelete: "cascade" }),
+  toId:        uuid("to_id").notNull().references(() => socialUsers.id, { onDelete: "cascade" }),
+  content:     text("content").notNull(),
+  msgType:     dmTypeEnum("msg_type").notNull().default("text"),
+  roomId:      uuid("room_id"),
+  roomName:    text("room_name"),
+  inviteCode:  text("invite_code"),
+  read:        boolean("read").notNull().default(false),
+  createdAt:   timestamp("created_at").defaultNow().notNull(),
+});
+
+/* ── Types ─────────────────────────────────────────── */
+export type SocialUser    = typeof socialUsers.$inferSelect;
+export type Room          = typeof rooms.$inferSelect;
+export type RoomMember    = typeof roomMembers.$inferSelect;
+export type RoomMessage   = typeof roomMessages.$inferSelect;
+export type Friendship    = typeof friendships.$inferSelect;
+export type Post          = typeof posts.$inferSelect;
+export type PostLike      = typeof postLikes.$inferSelect;
+export type DirectMessage = typeof directMessages.$inferSelect;

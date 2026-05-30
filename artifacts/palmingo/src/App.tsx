@@ -7,22 +7,22 @@ import { AuthProvider, useAuth } from "@/lib/auth";
 import { I18nProvider } from "@/lib/i18n";
 import { useEffect, type ReactNode } from "react";
 
-import Landing from "@/pages/Landing";
-import Login from "@/pages/Login";
-import Onboarding from "@/pages/Onboarding";
-import Home from "@/pages/Home";
-import Flashcards from "@/pages/Flashcards";
-import Tutor from "@/pages/Tutor";
-import Dictionary from "@/pages/Dictionary";
-import Videos from "@/pages/Videos";
-import ProgressPage from "@/pages/Progress";
-import Chunks from "@/pages/Chunks";
-import Profile from "@/pages/Profile";
-import Settings from "@/pages/Settings";
-import Friends from "@/pages/Friends";
-import Rooms from "@/pages/Rooms";
-import Room from "@/pages/Room";
-import NotFound from "@/pages/not-found";
+import Landing       from "@/pages/Landing";
+import Login         from "@/pages/Login";
+import Onboarding    from "@/pages/Onboarding";
+import Home          from "@/pages/Home";
+import Flashcards    from "@/pages/Flashcards";
+import Tutor         from "@/pages/Tutor";
+import Dictionary    from "@/pages/Dictionary";
+import Videos        from "@/pages/Videos";
+import ProgressPage  from "@/pages/Progress";
+import Chunks        from "@/pages/Chunks";
+import Profile       from "@/pages/Profile";
+import Settings      from "@/pages/Settings";
+import Friends       from "@/pages/Friends";
+import Room          from "@/pages/Room";
+import SocialHub     from "@/pages/social/SocialHub";
+import NotFound      from "@/pages/not-found";
 
 const queryClient = new QueryClient();
 
@@ -60,6 +60,13 @@ function AppRouter() {
         </AuthGuard>
       </Route>
 
+      {/* Voice Room — full-screen, no AppShell */}
+      <Route path="/rooms/:id">
+        <AuthGuard>
+          <Room />
+        </AuthGuard>
+      </Route>
+
       {/* Authenticated — with AppShell */}
       <Route>
         <AuthGuard>
@@ -67,7 +74,6 @@ function AppRouter() {
             <Switch>
               <Route path="/home" component={Home} />
 
-              {/* Flashcards — 3 sub-routes, all handled by the same component */}
               <Route path="/flashcards/:deckId/study" component={Flashcards} />
               <Route path="/flashcards/:deckId" component={Flashcards} />
               <Route path="/flashcards" component={Flashcards} />
@@ -78,9 +84,19 @@ function AppRouter() {
               <Route path="/videos" component={Videos} />
               <Route path="/progress" component={ProgressPage} />
               <Route path="/chunks" component={Chunks} />
+
+              {/* Legacy redirect */}
               <Route path="/friends" component={Friends} />
-              <Route path="/rooms/:id" component={Room} />
-              <Route path="/rooms" component={Rooms} />
+              <Route path="/rooms"><Redirect to="/social/rooms" /></Route>
+
+              {/* Social Hub — all 4 tabs */}
+              <Route path="/social/chats/:friendId"><SocialHub /></Route>
+              <Route path="/social/chats"><SocialHub /></Route>
+              <Route path="/social/rooms"><SocialHub /></Route>
+              <Route path="/social/search"><SocialHub /></Route>
+              <Route path="/social/feed"><SocialHub /></Route>
+              <Route path="/social"><Redirect to="/social/feed" /></Route>
+
               <Route path="/profile" component={Profile} />
               <Route path="/settings" component={Settings} />
               <Route component={NotFound} />

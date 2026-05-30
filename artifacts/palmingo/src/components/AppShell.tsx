@@ -47,14 +47,27 @@ function IconRooms({ active }: { active: boolean }) {
   );
 }
 
+function IconSocial({ active }: { active: boolean }) {
+  const c = active ? "#fff" : BRAND_ORANGE;
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="8" cy="9" r="3" stroke={c} strokeWidth={active ? 2 : 1.7}
+        fill={active ? "rgba(255,255,255,0.15)" : "none"} />
+      <circle cx="17" cy="8" r="2.5" stroke={c} strokeWidth={active ? 1.8 : 1.5}
+        fill={active ? "rgba(255,255,255,0.12)" : "none"} />
+      <path d="M2 20c0-2.8 2.7-4.5 6-4.5s6 1.7 6 4.5" stroke={c} strokeWidth={active ? 2 : 1.7} />
+      <path d="M17 13.5c1.8 0.4 4 1.6 4 4" stroke={c} strokeWidth="1.4" opacity="0.8" />
+    </svg>
+  );
+}
+
 const mainNav = [
   { to: "/home",       label: "Home",       tKey: "home",       icon: IconHome },
   { to: "/flashcards", label: "Cards",      tKey: "cards",      icon: IconCards },
   { to: "/dictionary", label: "Dictionary", tKey: "dictionary", icon: IconDictionary },
   { to: "/chunks",     label: "Topics",     tKey: "topics",     icon: IconTopics },
   { to: "/videos",     label: "Videos",     tKey: "videos",     icon: IconVideos },
-  { to: "/friends",    label: "Friends",    tKey: "friends",    icon: IconFriends },
-  { to: "/rooms",      label: "Rooms",      tKey: "rooms",      icon: IconRooms },
+  { to: "/social",     label: "Social",     tKey: "social",     icon: IconSocial },
   { to: "/laxa",       label: "Laxa AI",    tKey: "laxa_ai",    icon: IconLaxa },
 ] as const;
 
@@ -289,7 +302,7 @@ function MobileSidebar({
             {/* Nav links */}
             <nav style={{ flex: 1, overflowY: "auto", padding: "12px 12px 0" }}>
               {mainNav.map((item) => {
-                const active = pathname === item.to;
+                const active = item.to === "/home" ? pathname === item.to : pathname === item.to || pathname.startsWith(item.to + "/");
                 return (
                   <button key={item.to} onClick={() => handleNav(item.to)}
                     style={{
@@ -407,7 +420,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const { t, isRTL } = useI18n();
   const handleSignOut = () => { signOut(); navigate("/"); };
-  const isActive = (to: string) => pathname === to;
+  const isActive = (to: string) => to === "/home" ? pathname === to : pathname === to || pathname.startsWith(to + "/");
   const isHome = pathname === HOME_PAGE;
   // LAXA UI UPDATE — Change 1 — Full-height layout for /laxa (no padding, no back bar)
   const isLaxa = pathname === LAXA_PAGE;

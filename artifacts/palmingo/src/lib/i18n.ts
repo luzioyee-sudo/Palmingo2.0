@@ -39,7 +39,7 @@ const dict: Record<LangCode, T> = {
   ar: {
     // ── Nav ──
     home: "الرئيسية", cards: "البطاقات", dictionary: "القاموس",
-    topics: "المواضيع", videos: "الفيديوهات", laxa_ai: "لاكسا AI", friends: "الأصدقاء", rooms: "الغرف",
+    topics: "المواضيع", videos: "الفيديوهات", laxa_ai: "لاكسا AI", friends: "الأصدقاء", rooms: "الغرف", social: "التواصل",
     settings: "الإعدادات", sign_out: "تسجيل الخروج", profile: "الملف الشخصي",
     // ── Home ──
     greeting_morning: "صباح الخير", greeting_afternoon: "مساء الخير",
@@ -110,7 +110,7 @@ const dict: Record<LangCode, T> = {
 
   en: {
     home: "Home", cards: "Cards", dictionary: "Dictionary",
-    topics: "Topics", videos: "Videos", laxa_ai: "Laxa AI", friends: "Friends", rooms: "Rooms",
+    topics: "Topics", videos: "Videos", laxa_ai: "Laxa AI", friends: "Friends", rooms: "Rooms", social: "Social",
     settings: "Settings", sign_out: "Sign out", profile: "Profile",
     greeting_morning: "Good morning", greeting_afternoon: "Good afternoon",
     greeting_evening: "Good evening", greeting_night: "Good night",
@@ -174,7 +174,7 @@ const dict: Record<LangCode, T> = {
 
   fr: {
     home: "Accueil", cards: "Cartes", dictionary: "Dictionnaire",
-    topics: "Sujets", videos: "Vidéos", laxa_ai: "Laxa AI", friends: "Amis", rooms: "Salles",
+    topics: "Sujets", videos: "Vidéos", laxa_ai: "Laxa AI", friends: "Amis", rooms: "Salles", social: "Social",
     settings: "Paramètres", sign_out: "Se déconnecter", profile: "Profil",
     greeting_morning: "Bonjour", greeting_afternoon: "Bon après-midi",
     greeting_evening: "Bonsoir", greeting_night: "Bonne nuit",
@@ -238,7 +238,7 @@ const dict: Record<LangCode, T> = {
 
   it: {
     home: "Home", cards: "Carte", dictionary: "Dizionario",
-    topics: "Argomenti", videos: "Video", laxa_ai: "Laxa AI", friends: "Amici", rooms: "Stanze",
+    topics: "Argomenti", videos: "Video", laxa_ai: "Laxa AI", friends: "Amici", rooms: "Stanze", social: "Sociale",
     settings: "Impostazioni", sign_out: "Esci", profile: "Profilo",
     greeting_morning: "Buongiorno", greeting_afternoon: "Buon pomeriggio",
     greeting_evening: "Buonasera", greeting_night: "Buonanotte",
@@ -302,7 +302,7 @@ const dict: Record<LangCode, T> = {
 
   de: {
     home: "Startseite", cards: "Karten", dictionary: "Wörterbuch",
-    topics: "Themen", videos: "Videos", laxa_ai: "Laxa AI", friends: "Freunde", rooms: "Räume",
+    topics: "Themen", videos: "Videos", laxa_ai: "Laxa AI", friends: "Freunde", rooms: "Räume", social: "Sozial",
     settings: "Einstellungen", sign_out: "Abmelden", profile: "Profil",
     greeting_morning: "Guten Morgen", greeting_afternoon: "Guten Nachmittag",
     greeting_evening: "Guten Abend", greeting_night: "Gute Nacht",
@@ -366,7 +366,7 @@ const dict: Record<LangCode, T> = {
 
   es: {
     home: "Inicio", cards: "Tarjetas", dictionary: "Diccionario",
-    topics: "Temas", videos: "Videos", laxa_ai: "Laxa AI", friends: "Amigos", rooms: "Salas",
+    topics: "Temas", videos: "Videos", laxa_ai: "Laxa AI", friends: "Amigos", rooms: "Salas", social: "Social",
     settings: "Ajustes", sign_out: "Cerrar sesión", profile: "Perfil",
     greeting_morning: "Buenos días", greeting_afternoon: "Buenas tardes",
     greeting_evening: "Buenas tardes", greeting_night: "Buenas noches",
@@ -430,7 +430,7 @@ const dict: Record<LangCode, T> = {
 
   pt: {
     home: "Início", cards: "Cartões", dictionary: "Dicionário",
-    topics: "Tópicos", videos: "Vídeos", laxa_ai: "Laxa AI", friends: "Amigos", rooms: "Salas",
+    topics: "Tópicos", videos: "Vídeos", laxa_ai: "Laxa AI", friends: "Amigos", rooms: "Salas", social: "Social",
     settings: "Configurações", sign_out: "Sair", profile: "Perfil",
     greeting_morning: "Bom dia", greeting_afternoon: "Boa tarde",
     greeting_evening: "Boa tarde", greeting_night: "Boa noite",

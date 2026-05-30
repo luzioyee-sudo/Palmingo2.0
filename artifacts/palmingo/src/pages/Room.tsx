@@ -1,621 +1,501 @@
-import { motion, AnimatePresence } from "framer-motion";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useRoute, useLocation } from "wouter";
-import {
-  Mic, MicOff, LogOut, Copy, Check, Crown, Shield,
-  Volume2, VolumeX, Zap, Users, Send, ChevronDown,
-} from "lucide-react";
-import { BRAND_ORANGE } from "@/lib/theme";
-import { wsClient, type OnlineMember, type WsMessage } from "@/lib/ws-client";
-import {
-  getRoomDetail, getRoomMessages, leaveRoom, getMyId, getMyUsername,
-  type RoomDetail,
-} from "@/lib/social";
+import { wsClient } from "@/lib/ws-client";
+import type { WsMessage } from "@/lib/ws-client";
+import type { RoomMember } from "@/lib/social";
+import { getRoomDetail, getRoomMessages, leaveRoom, getMyId } from "@/lib/social";
 
-/* ── Avatar ─────────────────────────────────────── */
-const COLORS = [
-  "oklch(0.65 0.2 250)", "oklch(0.7 0.2 180)",
-  "oklch(0.68 0.22 320)", "oklch(0.72 0.2 60)",
-  "oklch(0.65 0.22 150)", "oklch(0.7 0.2 30)",
-];
-function hashIdx(s: string) {
-  let h = 0;
-  for (const c of s) h = (h * 31 + c.charCodeAt(0)) & 0xffffff;
-  return h % COLORS.length;
+/* ── Avatar helpers ──────────────────────────────────── */
+function initials(name: string | null, username: string | null) {
+  const n = name ?? username ?? "?";
+  return n.slice(0, 2).toUpperCase();
 }
-function UserAvatar({ username, size = 36 }: { username: string; size?: number }) {
-  const initials = username.slice(0, 2).toUpperCase();
-  const i = hashIdx(username);
+
+function SpeakerAvatar({
+  member, isSpeaking, hasHandRaised, myId, onPress,
+}: {
+  member: RoomMember; isSpeaking: boolean; hasHandRaised: boolean;
+  myId: string | null; onPress?: (m: RoomMember) => void;
+}) {
+  const isMe = member.userId === myId;
   return (
-    <div style={{
-      width: size, height: size, borderRadius: "50%", flexShrink: 0,
-      background: `linear-gradient(135deg, ${COLORS[i]}, ${COLORS[(i + 1) % COLORS.length]})`,
-      display: "flex", alignItems: "center", justifyContent: "center",
-      color: "#fff", fontWeight: 700, fontSize: size * 0.36,
-      fontFamily: "'Space Grotesk', sans-serif",
-    }}>{initials}</div>
-  );
-}
-
-/* ── Role badge ──────────────────────────────────── */
-function RoleBadge({ role }: { role: string }) {
-  if (role === "admin")     return <Crown  className="w-3.5 h-3.5" style={{ color: "#F59E0B" }} />;
-  if (role === "moderator") return <Shield className="w-3.5 h-3.5" style={{ color: "oklch(0.65 0.2 250)" }} />;
-  return null;
-}
-
-/* ── Speaking indicator ──────────────────────────── */
-function SpeakingDot({ active }: { active: boolean }) {
-  return (
-    <motion.div
-      animate={active ? { scale: [1, 1.4, 1], opacity: [0.6, 1, 0.6] } : { scale: 1, opacity: 0.3 }}
-      transition={{ duration: 0.7, repeat: active ? Infinity : 0 }}
-      style={{
-        width: 8, height: 8, borderRadius: "50%",
-        background: active ? "oklch(0.65 0.22 150)" : "var(--muted-foreground)",
-      }}
-    />
-  );
-}
-
-/* ── Message bubble ──────────────────────────────── */
-function MsgBubble({ msg, myId }: { msg: WsMessage; myId: string | null }) {
-  const isMe = msg.userId === myId;
-  const isSystem = msg.type === "system";
-  const isChallenge = msg.type === "challenge";
-
-  if (isSystem) {
-    return (
-      <div style={{ textAlign: "center", padding: "2px 0" }}>
-        <span style={{
-          fontSize: 12, color: "var(--muted-foreground)",
-          background: "var(--secondary)", borderRadius: 99,
-          padding: "3px 12px", display: "inline-block",
-        }}>{msg.content}</span>
-      </div>
-    );
-  }
-
-  if (isChallenge) {
-    return (
-      <motion.div
-        initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-        style={{
-          background: "linear-gradient(135deg, oklch(0.75 0.18 60 / 0.15), oklch(0.65 0.22 30 / 0.1))",
-          border: "1px solid oklch(0.75 0.18 60 / 0.4)",
-          borderRadius: 16, padding: "14px 16px", margin: "4px 0",
-        }}
+    <div className="flex flex-col items-center gap-1.5" style={{ width: 84 }}>
+      <button
+        onClick={() => onPress?.(member)}
+        className="relative focus:outline-none"
+        aria-label={member.name ?? member.username ?? "?"}
       >
-        <div style={{ fontSize: 11, fontWeight: 700, color: "oklch(0.7 0.2 60)", marginBottom: 6, letterSpacing: "0.05em" }}>
-          ⚡ AI CHALLENGE
+        {/* Pulse glow ring for speakers */}
+        {isSpeaking && (
+          <span className="absolute inset-[-6px] rounded-full animate-ping"
+            style={{ background: "rgba(255,107,53,0.2)", animationDuration: "1.8s" }} />
+        )}
+        {/* Avatar */}
+        <div
+          style={{
+            width: 72, height: 72, borderRadius: "50%",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontWeight: 700, fontSize: 20, color: "white", userSelect: "none",
+            background: isSpeaking
+              ? "linear-gradient(135deg, #ff6b35 0%, #e63000 100%)"
+              : "linear-gradient(135deg, #3b2c80 0%, #251a5e 100%)",
+            boxShadow: isSpeaking
+              ? "0 0 0 3px #ff6b35, 0 8px 24px rgba(255,107,53,0.45)"
+              : "0 0 0 2px rgba(255,255,255,0.07), 0 4px 14px rgba(0,0,0,0.4)",
+            transition: "all 0.35s cubic-bezier(.4,0,.2,1)",
+            position: "relative",
+          }}
+        >
+          {initials(member.name, member.username)}
+          {isMe && (
+            <span style={{ position: "absolute", bottom: -4, right: -4, background: "#ff6b35", borderRadius: "50%", width: 20, height: 20, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, border: "2px solid #0d0828" }}>
+              ✓
+            </span>
+          )}
+          {member.role === "admin" && (
+            <span style={{ position: "absolute", top: -4, right: -4, fontSize: 14 }}>👑</span>
+          )}
+          {member.role === "moderator" && !isSpeaking && (
+            <span style={{ position: "absolute", top: -4, right: -4, fontSize: 12 }}>🛡️</span>
+          )}
         </div>
-        <div style={{ fontSize: 14, color: "var(--foreground)", lineHeight: 1.5 }}>{msg.content}</div>
-      </motion.div>
-    );
-  }
-
-  return (
-    <div style={{
-      display: "flex", flexDirection: isMe ? "row-reverse" : "row",
-      gap: 8, alignItems: "flex-end",
-    }}>
-      {!isMe && <UserAvatar username={msg.username ?? "?"} size={28} />}
-      <div style={{ maxWidth: "72%", display: "flex", flexDirection: "column", alignItems: isMe ? "flex-end" : "flex-start" }}>
-        {!isMe && (
-          <span style={{ fontSize: 11, color: "var(--muted-foreground)", marginBottom: 3, paddingLeft: 2 }}>
-            @{msg.username}
+        {/* Hand raised */}
+        {hasHandRaised && (
+          <span style={{ position: "absolute", top: -4, left: -4, background: "#ff6b35", borderRadius: "50%", width: 20, height: 20, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, animation: "bounce 1s infinite" }}>
+            ✋
           </span>
         )}
+        {/* Muted indicator */}
+        {member.muted && (
+          <span style={{ position: "absolute", bottom: -4, right: -4, background: "#1a1040", border: "1.5px solid rgba(255,255,255,0.15)", borderRadius: "50%", width: 18, height: 18, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9 }}>
+            🔇
+          </span>
+        )}
+      </button>
+      <span style={{ color: "rgba(255,255,255,0.8)", fontSize: 11, textAlign: "center", maxWidth: 72, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {member.name ?? member.username ?? "?"}
+      </span>
+    </div>
+  );
+}
+
+function AudienceAvatar({ member, hasHandRaised, myId, onPress }: {
+  member: RoomMember; hasHandRaised: boolean; myId: string | null;
+  onPress?: (m: RoomMember) => void;
+}) {
+  const isMe = member.userId === myId;
+  return (
+    <div className="flex flex-col items-center gap-1" style={{ width: 54 }}>
+      <button onClick={() => onPress?.(member)} className="relative focus:outline-none">
         <div style={{
-          background: isMe ? `linear-gradient(135deg, ${BRAND_ORANGE}, #FF6B3D)` : "var(--secondary)",
-          color: isMe ? "#fff" : "var(--foreground)",
-          borderRadius: isMe ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
-          padding: "9px 13px", fontSize: 14, lineHeight: 1.45,
-          border: isMe ? "none" : "1px solid var(--border)",
+          width: 48, height: 48, borderRadius: "50%", display: "flex", alignItems: "center",
+          justifyContent: "center", fontWeight: 600, fontSize: 13, color: "rgba(255,255,255,0.75)",
+          background: "linear-gradient(135deg, #2a1d6e 0%, #1a1045 100%)",
+          boxShadow: isMe ? "0 0 0 2px #ff6b35" : "0 0 0 1px rgba(255,255,255,0.06)",
         }}>
-          {msg.content}
+          {initials(member.name, member.username)}
         </div>
-        <span style={{ fontSize: 10, color: "var(--muted-foreground)", marginTop: 3, paddingInline: 4 }}>
-          {new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-        </span>
+        {hasHandRaised && (
+          <span style={{ position: "absolute", top: -4, right: -4, background: "#ff6b35", borderRadius: "50%", width: 16, height: 16, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, animation: "bounce 1s infinite" }}>
+            ✋
+          </span>
+        )}
+      </button>
+      <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 10, textAlign: "center", maxWidth: 48, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {member.username ?? "?"}
+      </span>
+    </div>
+  );
+}
+
+/* ── Chat bubble ─────────────────────────────────────── */
+function MsgBubble({ msg }: { msg: WsMessage }) {
+  if (msg.type === "system") return (
+    <div style={{ textAlign: "center", color: "rgba(255,255,255,0.25)", fontSize: 11, padding: "4px 0" }}>
+      {msg.content}
+    </div>
+  );
+  if (msg.type === "challenge") return (
+    <div style={{ margin: "6px 0", padding: "12px 14px", borderRadius: 16, background: "rgba(255,107,53,0.1)", border: "1px solid rgba(255,107,53,0.25)" }}>
+      <div style={{ color: "#ff6b35", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
+        ⚡ AI Challenge
+      </div>
+      <p style={{ color: "rgba(255,255,255,0.9)", fontSize: 13, lineHeight: 1.5, margin: 0 }}>
+        {msg.content}
+      </p>
+    </div>
+  );
+  return (
+    <div style={{ padding: "2px 0" }}>
+      <span style={{ color: "#ff9966", fontSize: 11, fontWeight: 600 }}>{msg.username ?? "?"}: </span>
+      <span style={{ color: "rgba(255,255,255,0.75)", fontSize: 13 }}>{msg.content}</span>
+    </div>
+  );
+}
+
+/* ── Member action sheet ─────────────────────────────── */
+function MemberSheet({ member, myRole, isOnStage, onClose, onApprove, onRemoveStage, onMute, onKick }: {
+  member: RoomMember; myRole: string; isOnStage: boolean;
+  onClose: () => void;
+  onApprove: () => void; onRemoveStage: () => void;
+  onMute: () => void; onKick: () => void;
+}) {
+  const canManage = myRole !== "member";
+  return (
+    <div className="fixed inset-0 z-[200] flex items-end" style={{ background: "rgba(0,0,0,0.6)" }} onClick={onClose}>
+      <div className="w-full rounded-t-3xl p-6 space-y-2" style={{ background: "#1a1050" }} onClick={e => e.stopPropagation()}>
+        {/* Drag handle */}
+        <div className="w-10 h-1 rounded-full mx-auto mb-4" style={{ background: "rgba(255,255,255,0.2)" }} />
+        <div className="flex items-center gap-3 mb-5">
+          <div className="w-12 h-12 rounded-full flex items-center justify-center font-bold text-white text-base"
+            style={{ background: "linear-gradient(135deg,#3b2c80,#251a5e)" }}>
+            {initials(member.name, member.username)}
+          </div>
+          <div>
+            <div className="text-white font-semibold">{member.name ?? member.username}</div>
+            <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 12 }}>@{member.username} · {member.role}</div>
+          </div>
+        </div>
+        {canManage && (
+          <>
+            {!isOnStage ? (
+              <button className="w-full py-3.5 rounded-2xl text-sm font-semibold text-left px-5 text-white transition-all"
+                style={{ background: "rgba(255,107,53,0.15)", border: "1px solid rgba(255,107,53,0.3)" }}
+                onClick={() => { onApprove(); onClose(); }}>
+                🎙️ Move to Stage
+              </button>
+            ) : (
+              <button className="w-full py-3.5 rounded-2xl text-sm font-medium text-left px-5"
+                style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.7)" }}
+                onClick={() => { onRemoveStage(); onClose(); }}>
+                ⬇️ Move to Audience
+              </button>
+            )}
+            <button className="w-full py-3.5 rounded-2xl text-sm font-medium text-left px-5"
+              style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.7)" }}
+              onClick={() => { onMute(); onClose(); }}>
+              {member.muted ? "🔊 Unmute" : "🔇 Mute"}
+            </button>
+            <button className="w-full py-3.5 rounded-2xl text-sm font-medium text-left px-5"
+              style={{ background: "rgba(220,38,38,0.08)", color: "#f87171" }}
+              onClick={() => { onKick(); onClose(); }}>
+              🚫 Remove from Room
+            </button>
+          </>
+        )}
+        <button className="w-full py-3 text-sm text-center" style={{ color: "rgba(255,255,255,0.35)" }} onClick={onClose}>
+          Cancel
+        </button>
       </div>
     </div>
   );
 }
 
-/* ── Admin controls dropdown ─────────────────────── */
-function MemberControls({
-  member, myRole, roomId, myId,
-  onClose,
-}: {
-  member: OnlineMember; myRole: string; roomId: string; myId: string;
-  onClose: () => void;
-}) {
-  const isAdmin = myRole === "admin";
-  const isMod   = myRole === "moderator";
-  const canControl = isAdmin || isMod;
-  if (!canControl || member.userId === myId) return null;
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.9, y: -4 }} animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.9 }}
-      style={{
-        position: "absolute", right: 0, top: 36, zIndex: 50,
-        background: "var(--background)", border: "1px solid var(--border)",
-        borderRadius: 12, padding: 6, boxShadow: "0 8px 24px rgba(0,0,0,0.2)",
-        minWidth: 160,
-      }}
-    >
-      <button onClick={() => { wsClient.muteUser(roomId, member.userId, !member.muted); onClose(); }}
-        style={{ width: "100%", textAlign: "left", padding: "9px 12px", fontSize: 13, background: "none", border: "none", cursor: "pointer", borderRadius: 8, color: "var(--foreground)", fontFamily: "'Space Grotesk', sans-serif", display: "flex", alignItems: "center", gap: 8 }}>
-        {member.muted ? <Volume2 className="w-3.5 h-3.5" style={{ color: BRAND_ORANGE }} /> : <VolumeX className="w-3.5 h-3.5" />}
-        {member.muted ? "Unmute" : "Mute"}
-      </button>
-
-      {isAdmin && member.role !== "moderator" && (
-        <button onClick={() => { wsClient.setRole(roomId, member.userId, "moderator"); onClose(); }}
-          style={{ width: "100%", textAlign: "left", padding: "9px 12px", fontSize: 13, background: "none", border: "none", cursor: "pointer", borderRadius: 8, color: "var(--foreground)", fontFamily: "'Space Grotesk', sans-serif", display: "flex", alignItems: "center", gap: 8 }}>
-          <Shield className="w-3.5 h-3.5" style={{ color: "oklch(0.65 0.2 250)" }} /> Make Moderator
-        </button>
-      )}
-      {isAdmin && member.role === "moderator" && (
-        <button onClick={() => { wsClient.setRole(roomId, member.userId, "member"); onClose(); }}
-          style={{ width: "100%", textAlign: "left", padding: "9px 12px", fontSize: 13, background: "none", border: "none", cursor: "pointer", borderRadius: 8, color: "var(--foreground)", fontFamily: "'Space Grotesk', sans-serif", display: "flex", alignItems: "center", gap: 8 }}>
-          <Shield className="w-3.5 h-3.5" /> Remove Moderator
-        </button>
-      )}
-
-      <div style={{ height: 1, background: "var(--border)", margin: "4px 0" }} />
-      <button onClick={() => { wsClient.kickUser(roomId, member.userId); onClose(); }}
-        style={{ width: "100%", textAlign: "left", padding: "9px 12px", fontSize: 13, background: "none", border: "none", cursor: "pointer", borderRadius: 8, color: "oklch(0.6 0.22 25)", fontFamily: "'Space Grotesk', sans-serif", display: "flex", alignItems: "center", gap: 8 }}>
-        <LogOut className="w-3.5 h-3.5" /> Kick
-      </button>
-    </motion.div>
-  );
-}
-
-/* ═══════════════════════════════════════════════════
-   MAIN ROOM PAGE
-══════════════════════════════════════════════════ */
+/* ── Room page ───────────────────────────────────────── */
 export default function Room() {
-  const [, params]  = useRoute("/rooms/:id");
+  const [, params] = useRoute("/rooms/:id");
   const [, navigate] = useLocation();
   const roomId = params?.id ?? "";
   const myId   = getMyId();
-  const myUsername = getMyUsername();
 
-  /* ── state ──────────────────────────────────── */
-  const [room, setRoom]       = useState<RoomDetail | null>(null);
-  const [messages, setMsgs]   = useState<WsMessage[]>([]);
-  const [members, setMembers] = useState<OnlineMember[]>([]);
-  const [myRole, setMyRole]   = useState<"admin" | "moderator" | "member">("member");
-  const [micOn, setMicOn]     = useState(false);
-  const [myMuted, setMyMuted] = useState(false);
-  const [chatInput, setInput] = useState("");
-  const [copied, setCopied]   = useState(false);
-  const [openMenu, setOpenMenu] = useState<string | null>(null);
-  const [showMembers, setShowMembers] = useState(false);
-  const [wsReady, setWsReady] = useState(false);
-  const [targetLang, setTargetLang] = useState("English");
-
+  const [roomName, setRoomName]       = useState("Voice Room");
+  const [targetLang, setTargetLang]   = useState("English");
+  const [myRole, setMyRole]           = useState<"admin" | "moderator" | "member">("member");
+  const [members, setMembers]         = useState<RoomMember[]>([]);
+  const [speakers, setSpeakers]       = useState<Set<string>>(new Set());
+  const [handRaised, setHandRaised]   = useState<Set<string>>(new Set());
+  const [isOnStage, setIsOnStage]     = useState(false);
+  const [myHandRaised, setMyHandRaised] = useState(false);
+  const [micOn, setMicOn]             = useState(false);
+  const [audioStarted, setAudioStarted] = useState(false);
+  const [messages, setMessages]       = useState<WsMessage[]>([]);
+  const [chatInput, setChatInput]     = useState("");
+  const [selected, setSelected]       = useState<RoomMember | null>(null);
+  const [handReqs, setHandReqs]       = useState<{ userId: string; username: string }[]>([]);
+  const [loading, setLoading]         = useState(true);
   const chatEndRef = useRef<HTMLDivElement>(null);
-  const audioRefs  = useRef<Map<string, HTMLAudioElement>>(new Map());
+  const inputRef   = useRef<HTMLInputElement>(null);
 
-  /* ── load room data ──────────────────────────── */
+  // Load room
   useEffect(() => {
     if (!roomId) return;
-    getRoomDetail(roomId)
-      .then(r => { setRoom(r); setTargetLang(r.targetLang); })
-      .catch(() => navigate("/rooms"));
-    getRoomMessages(roomId)
-      .then(msgs => setMsgs(msgs as WsMessage[]))
-      .catch(() => {});
-  }, [roomId, navigate]);
-
-  /* ── WebSocket setup ─────────────────────────── */
-  useEffect(() => {
-    if (!myId || !myUsername || !roomId) return;
-
-    // Handle remote audio streams
-    wsClient.setOnRemoteStream((peerId, stream) => {
-      if (stream) {
-        let audio = audioRefs.current.get(peerId);
-        if (!audio) {
-          audio = new Audio();
-          audio.autoplay = true;
-          audioRefs.current.set(peerId, audio);
-        }
-        audio.srcObject = stream;
-      } else {
-        const audio = audioRefs.current.get(peerId);
-        if (audio) { audio.srcObject = null; audioRefs.current.delete(peerId); }
-      }
-    });
-
-    wsClient.connect();
-
-    const unsub = wsClient.on((ev) => {
-      switch (ev.type) {
-        case "registered":
-          wsClient.joinRoom(roomId);
-          break;
-
-        case "room_joined":
-          setMembers(ev.members as OnlineMember[]);
-          setMyRole(
-            (ev.members.find((m: OnlineMember) => m.userId === myId)?.role ?? "member") as "admin" | "moderator" | "member"
-          );
-          setWsReady(true);
-          break;
-
-        case "member_online":
-          setMembers(prev => {
-            const exists = prev.find(m => m.userId === ev.userId);
-            if (exists) return prev.map(m => m.userId === ev.userId ? { ...m, online: true } : m);
-            return [...prev, { userId: ev.userId, username: ev.username, name: ev.username, role: ev.role as "admin" | "moderator" | "member", muted: ev.muted, online: true }];
-          });
-          break;
-
-        case "member_offline":
-          setMembers(prev => prev.map(m => m.userId === ev.userId ? { ...m, online: false } : m));
-          break;
-
-        case "member_muted":
-          setMembers(prev => prev.map(m => m.userId === ev.userId ? { ...m, muted: ev.muted } : m));
-          break;
-
-        case "member_kicked":
-          setMembers(prev => prev.filter(m => m.userId !== ev.userId));
-          break;
-
-        case "role_changed":
-          setMembers(prev => prev.map(m => m.userId === ev.userId ? { ...m, role: ev.role as "admin" | "moderator" | "member" } : m));
-          if (ev.userId === myId) setMyRole(ev.role as "admin" | "moderator" | "member");
-          break;
-
-        case "you_were_muted":
-          setMyMuted(ev.muted);
-          if (micOn) wsClient.setMicEnabled(!ev.muted);
-          break;
-
-        case "you_were_kicked":
-          navigate("/rooms");
-          break;
-
-        case "new_message":
-          setMsgs(prev => [...prev, ev.message]);
-          break;
-
-        default: break;
-      }
-    });
-
-    return () => {
-      unsub();
-      wsClient.leaveRoom(roomId);
-      wsClient.stopAudio();
-      for (const audio of audioRefs.current.values()) audio.srcObject = null;
-      audioRefs.current.clear();
-    };
-  }, [myId, myUsername, roomId, navigate, micOn]);
-
-  /* ── auto-scroll chat ────────────────────────── */
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
-  /* ── actions ─────────────────────────────────── */
-  const toggleMic = useCallback(async () => {
-    if (myMuted) return; // admin muted us
-    if (!micOn) {
-      const stream = await wsClient.startAudio();
-      if (stream) setMicOn(true);
-    } else {
-      wsClient.stopAudio();
-      setMicOn(false);
-    }
-  }, [micOn, myMuted]);
-
-  const sendMsg = useCallback(() => {
-    if (!chatInput.trim() || !wsReady) return;
-    wsClient.sendChat(roomId, chatInput.trim());
-    setInput("");
-  }, [chatInput, wsReady, roomId]);
-
-  const copyInvite = useCallback(async () => {
-    if (!room) return;
-    await navigator.clipboard.writeText(room.inviteCode).catch(() => {});
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }, [room]);
-
-  const handleLeave = useCallback(async () => {
-    wsClient.leaveRoom(roomId);
-    await leaveRoom(roomId).catch(() => {});
-    navigate("/rooms");
-  }, [roomId, navigate]);
-
-  const sendChallenge = useCallback(() => {
-    wsClient.requestChallenge(roomId);
+    setLoading(false);
+    getRoomDetail(roomId).then(r => { setRoomName(r.name); setTargetLang(r.targetLang); }).catch(() => {});
+    getRoomMessages(roomId).then(msgs => setMessages(msgs as unknown as WsMessage[])).catch(() => {});
   }, [roomId]);
 
-  /* ── layout helpers ──────────────────────────── */
-  const onlineCount  = members.filter(m => m.online).length;
-  const canChallenge = myRole === "admin" || myRole === "moderator";
-  const isWar        = room?.type === "war";
+  // WS handler
+  const handleEvent = useCallback((ev: Parameters<typeof wsClient.on>[0] extends (e: infer E) => void ? E : never) => {
+    if (ev.type === "room_joined") {
+      setMembers(ev.members as RoomMember[]);
+      setSpeakers(new Set(ev.speakers));
+      setHandRaised(new Set(ev.handRaised));
+      setTargetLang(ev.targetLang);
+      const me = ev.members.find((m: RoomMember) => m.userId === myId);
+      if (me) { setMyRole(me.role); setIsOnStage(!!me.isOnStage); }
+      return;
+    }
+    if (ev.type === "member_online") {
+      setMembers(prev => {
+        const idx = prev.findIndex(m => m.userId === ev.userId);
+        const next: RoomMember = { userId: ev.userId, username: ev.username, name: ev.username, role: ev.role as "admin"|"moderator"|"member", muted: ev.muted, online: true, isOnStage: ev.isOnStage, hasHandRaised: false };
+        return idx >= 0 ? prev.map((m, i) => i === idx ? { ...m, online: true } : m) : [...prev, next];
+      });
+      if (ev.isOnStage) setSpeakers(p => { const n = new Set(p); n.add(ev.userId); return n; });
+      return;
+    }
+    if (ev.type === "member_offline")   { setMembers(p => p.map(m => m.userId === ev.userId ? { ...m, online: false } : m)); return; }
+    if (ev.type === "member_muted")     { setMembers(p => p.map(m => m.userId === ev.userId ? { ...m, muted: ev.muted } : m)); return; }
+    if (ev.type === "member_kicked")    { setMembers(p => p.filter(m => m.userId !== ev.userId)); return; }
+    if (ev.type === "you_were_kicked")  { navigate("/social/rooms"); return; }
+    if (ev.type === "you_are_on_stage") { setIsOnStage(true); setMyHandRaised(false); return; }
+    if (ev.type === "you_are_in_audience") { setIsOnStage(false); setMicOn(false); wsClient.setMicEnabled(false); return; }
+    if (ev.type === "hand_raised") {
+      if (myRole !== "member") setHandReqs(p => [...p.filter(r => r.userId !== ev.userId), { userId: ev.userId, username: ev.username }]);
+      setHandRaised(p => { const n = new Set(p); n.add(ev.userId); return n; });
+      return;
+    }
+    if (ev.type === "hand_raised_broadcast") { setHandRaised(p => { const n = new Set(p); n.add(ev.userId); return n; }); return; }
+    if (ev.type === "hand_lowered") { setHandRaised(p => { const n = new Set(p); n.delete(ev.userId); return n; }); setHandReqs(p => p.filter(r => r.userId !== ev.userId)); return; }
+    if (ev.type === "speaker_added") { setSpeakers(p => { const n = new Set(p); n.add(ev.userId); return n; }); setHandRaised(p => { const n = new Set(p); n.delete(ev.userId); return n; }); setHandReqs(p => p.filter(r => r.userId !== ev.userId)); return; }
+    if (ev.type === "speaker_removed") { setSpeakers(p => { const n = new Set(p); n.delete(ev.userId); return n; }); return; }
+    if (ev.type === "new_message") { setMessages(p => [...p, ev.message]); return; }
+  }, [myId, myRole, navigate]);
 
-  if (!room) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="w-8 h-8 border-2 rounded-full animate-spin" style={{ borderColor: `${BRAND_ORANGE} transparent` }} />
-      </div>
-    );
-  }
+  useEffect(() => {
+    if (!roomId) return;
+    const off = wsClient.on(handleEvent as Parameters<typeof wsClient.on>[0]);
+    wsClient.connect();
+    wsClient.joinRoom(roomId);
+    return () => { off(); wsClient.leaveRoom(roomId); wsClient.stopAudio(); };
+  }, [roomId, handleEvent]);
 
-  /* ── Members panel ───────────────────────────── */
-  const MembersPanel = (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      {members.map(m => (
-        <div key={m.userId} style={{ position: "relative" }}>
-          <div
-            onClick={() => setOpenMenu(prev => prev === m.userId ? null : m.userId)}
-            style={{
-              display: "flex", alignItems: "center", gap: 10,
-              padding: "8px 10px", borderRadius: 12, cursor: "pointer",
-              background: m.online ? "rgba(255,77,46,0.06)" : "transparent",
-              border: `1px solid ${m.online ? "rgba(255,77,46,0.15)" : "transparent"}`,
-              transition: "all 0.15s",
-            }}
-          >
-            <div style={{ position: "relative" }}>
-              <UserAvatar username={m.username ?? "?"} size={34} />
-              <SpeakingDot active={m.online && !m.muted && micOn && m.userId === myId} />
-              {m.online && (
-                <div style={{
-                  position: "absolute", bottom: 0, right: 0,
-                  width: 8, height: 8, borderRadius: "50%",
-                  background: "oklch(0.65 0.22 150)",
-                  border: "1.5px solid var(--background)",
-                }} />
-              )}
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{
-                fontSize: 13, fontWeight: 600, color: "var(--foreground)",
-                fontFamily: "'Space Grotesk', sans-serif",
-                display: "flex", alignItems: "center", gap: 5,
-                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-              }}>
-                <RoleBadge role={m.role} />
-                {m.username ?? "?"}
-                {m.userId === myId && <span style={{ fontSize: 10, color: "var(--muted-foreground)" }}>(you)</span>}
-              </div>
-              <div style={{ fontSize: 11, color: "var(--muted-foreground)", display: "flex", alignItems: "center", gap: 4 }}>
-                {m.muted ? <MicOff className="w-2.5 h-2.5" /> : <Mic className="w-2.5 h-2.5" />}
-                {m.muted ? "Muted" : (m.online ? "Online" : "Away")}
-              </div>
-            </div>
-            {canChallenge && m.userId !== myId && (
-              <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
-            )}
-          </div>
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
-          <AnimatePresence>
-            {openMenu === m.userId && (
-              <MemberControls
-                member={m} myRole={myRole} roomId={roomId} myId={myId ?? ""}
-                onClose={() => setOpenMenu(null)}
-              />
-            )}
-          </AnimatePresence>
-        </div>
-      ))}
-    </div>
-  );
+  // Actions
+  const toggleMic = async () => {
+    if (!isOnStage) return;
+    if (!audioStarted) {
+      const stream = await wsClient.startAudio();
+      if (!stream) return;
+      setAudioStarted(true); setMicOn(true);
+    } else {
+      const next = !micOn; setMicOn(next); wsClient.setMicEnabled(next);
+    }
+  };
+  const handleRaiseHand = () => {
+    if (myHandRaised) { wsClient.lowerHand(roomId); setMyHandRaised(false); }
+    else              { wsClient.raiseHand(roomId);  setMyHandRaised(true); }
+  };
+  const handleStepDown = () => { wsClient.stepDown(roomId); setMicOn(false); wsClient.setMicEnabled(false); };
+  const sendChat = () => { if (!chatInput.trim()) return; wsClient.sendChat(roomId, chatInput.trim()); setChatInput(""); };
+  const handleLeave = async () => { await leaveRoom(roomId).catch(() => {}); navigate("/social/rooms"); };
+
+  const stageMembers    = members.filter(m => speakers.has(m.userId));
+  const audienceMembers = members.filter(m => !speakers.has(m.userId));
+  const isAdminOrMod    = myRole !== "member";
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "calc(100dvh - 120px)", minHeight: 500 }}>
-
-      {/* ── Room Header ───────────────────────── */}
+    <div style={{
+      position: "fixed", inset: 0, zIndex: 50,
+      display: "flex", flexDirection: "column", overflow: "hidden",
+      background: "linear-gradient(160deg, #100a2e 0%, #0c0720 50%, #12083a 100%)",
+    }}>
+      {/* ── Header ──────────────────────────────────── */}
       <div style={{
-        display: "flex", alignItems: "center", gap: 12, padding: "0 0 16px",
-        borderBottom: "1px solid var(--border)", flexWrap: "wrap", rowGap: 8,
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "16px 20px 12px",
+        background: "rgba(0,0,0,0.25)", backdropFilter: "blur(20px)",
+        borderBottom: "1px solid rgba(255,255,255,0.06)",
       }}>
-        <div style={{ fontSize: 24 }}>{isWar ? "⚔️" : "🎙️"}</div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{
-            fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18,
-            color: "var(--foreground)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-          }}>{room.name}</div>
-          <div style={{ fontSize: 12, color: "var(--muted-foreground)", display: "flex", gap: 10 }}>
-            <span><Users className="w-3 h-3 inline mr-1" />{onlineCount} online · {members.length} members</span>
-            <span>🌍 {room.targetLang}</span>
+        <button onClick={handleLeave} style={{
+          width: 34, height: 34, borderRadius: "50%", border: "none", cursor: "pointer",
+          background: "rgba(255,255,255,0.09)", color: "rgba(255,255,255,0.7)",
+          display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14,
+        }}>✕</button>
+        <div style={{ textAlign: "center" }}>
+          <div style={{ color: "white", fontWeight: 600, fontSize: 15 }}>{roomName}</div>
+          <div style={{ color: "rgba(255,107,53,0.7)", fontSize: 11 }}>
+            {targetLang} · {members.length} members
           </div>
         </div>
-
-        {/* Invite code */}
-        <button onClick={copyInvite} style={{
-          display: "flex", alignItems: "center", gap: 6,
-          background: "var(--secondary)", border: "1px solid var(--border)",
-          borderRadius: 10, padding: "7px 12px", cursor: "pointer",
-          fontFamily: "monospace", fontWeight: 700, fontSize: 14, letterSpacing: "0.1em",
-          color: "var(--foreground)",
-        }}>
-          {copied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" style={{ color: BRAND_ORANGE }} />}
-          {room.inviteCode}
-        </button>
-
-        <button onClick={handleLeave} style={{
-          display: "flex", alignItems: "center", gap: 6,
-          background: "rgba(255,77,46,0.1)", border: "1px solid rgba(255,77,46,0.3)",
-          borderRadius: 10, padding: "7px 14px", cursor: "pointer",
-          color: BRAND_ORANGE, fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 13,
-        }}>
-          <LogOut className="w-3.5 h-3.5" /> Leave
-        </button>
+        <div style={{ width: 34, height: 34 }} />
       </div>
 
-      {/* ── Body ─────────────────────────────── */}
-      <div style={{ flex: 1, display: "flex", gap: 16, minHeight: 0, marginTop: 16 }}>
+      {/* ── Scrollable content ───────────────────────── */}
+      <div style={{ flex: 1, overflowY: "auto", paddingBottom: 140 }}>
 
-        {/* Members sidebar (desktop) */}
-        <div className="hidden md:flex" style={{
-          width: 220, flexShrink: 0, flexDirection: "column", gap: 8,
-        }}>
-          <div style={{
-            fontSize: 11, fontWeight: 700, color: "var(--muted-foreground)",
-            letterSpacing: "0.08em", textTransform: "uppercase", padding: "0 4px",
-          }}>
-            Members — {members.length}
-          </div>
-          <div style={{ flex: 1, overflowY: "auto", paddingRight: 4 }}>
-            {MembersPanel}
+        {/* Stage */}
+        <div style={{ padding: "20px 16px 8px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18 }}>
+            <span style={{ color: "#ff6b35", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.12em" }}>
+              🎙 On Stage
+            </span>
+            <div style={{ flex: 1, height: 1, background: "rgba(255,107,53,0.18)" }} />
+            <span style={{ color: "rgba(255,255,255,0.2)", fontSize: 10 }}>{stageMembers.length}</span>
           </div>
 
-          {/* Admin challenge button */}
-          {canChallenge && (
-            <button onClick={sendChallenge} style={{
-              width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-              background: "linear-gradient(135deg, oklch(0.75 0.18 60), oklch(0.65 0.22 30))",
-              color: "#fff", border: "none", borderRadius: 12, padding: "11px",
-              cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 13,
-            }}>
-              <Zap className="w-4 h-4" /> AI Challenge
-            </button>
+          {stageMembers.length === 0 ? (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "28px 0", opacity: 0.35 }}>
+              <div style={{ fontSize: 36, marginBottom: 8 }}>🎙️</div>
+              <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, margin: 0 }}>No speakers on stage yet</p>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 18 }}>
+              {stageMembers.map(m => (
+                <SpeakerAvatar key={m.userId} member={m}
+                  isSpeaking={speakers.has(m.userId)} hasHandRaised={handRaised.has(m.userId)}
+                  myId={myId} onPress={isAdminOrMod ? setSelected : undefined}
+                />
+              ))}
+            </div>
           )}
         </div>
 
-        {/* Chat area */}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
-
-          {/* Mobile: members toggle */}
-          <div className="md:hidden mb-3">
-            <button onClick={() => setShowMembers(v => !v)} style={{
-              display: "flex", alignItems: "center", gap: 6,
-              background: "var(--secondary)", border: "1px solid var(--border)",
-              borderRadius: 10, padding: "7px 12px", cursor: "pointer", fontSize: 13,
-              color: "var(--foreground)", fontFamily: "'Space Grotesk', sans-serif",
-            }}>
-              <Users className="w-3.5 h-3.5" style={{ color: BRAND_ORANGE }} />
-              {members.length} members {showMembers ? "▲" : "▼"}
-            </button>
-            <AnimatePresence>
-              {showMembers && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}
-                  style={{ overflow: "hidden", marginTop: 8 }}
-                >
-                  <div className="glass rounded-2xl p-3">{MembersPanel}</div>
-                  {canChallenge && (
-                    <button onClick={sendChallenge} style={{
-                      width: "100%", marginTop: 8,
-                      background: "linear-gradient(135deg, oklch(0.75 0.18 60), oklch(0.65 0.22 30))",
-                      color: "#fff", border: "none", borderRadius: 12, padding: "11px",
-                      cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 13,
-                      display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                    }}>
-                      <Zap className="w-4 h-4" /> AI Challenge
-                    </button>
-                  )}
-                </motion.div>
+        {/* Audience */}
+        {audienceMembers.length > 0 && (
+          <div style={{ padding: "16px 16px 4px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+              <span style={{ color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em" }}>
+                👥 Audience
+              </span>
+              <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.05)" }} />
+              <span style={{ color: "rgba(255,255,255,0.18)", fontSize: 10 }}>{audienceMembers.length}</span>
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+              {audienceMembers.slice(0, 20).map(m => (
+                <AudienceAvatar key={m.userId} member={m} hasHandRaised={handRaised.has(m.userId)}
+                  myId={myId} onPress={isAdminOrMod ? setSelected : undefined}
+                />
+              ))}
+              {audienceMembers.length > 20 && (
+                <div style={{ width: 48, height: 48, borderRadius: "50%", background: "rgba(255,255,255,0.05)", display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(255,255,255,0.3)", fontSize: 12 }}>
+                  +{audienceMembers.length - 20}
+                </div>
               )}
-            </AnimatePresence>
-          </div>
-
-          {/* Messages */}
-          <div style={{
-            flex: 1, overflowY: "auto", display: "flex", flexDirection: "column",
-            gap: 8, padding: "4px 2px", minHeight: 0,
-          }}>
-            {messages.length === 0 && (
-              <div style={{ textAlign: "center", color: "var(--muted-foreground)", fontSize: 13, marginTop: 32 }}>
-                No messages yet. Say hello! 👋
-              </div>
-            )}
-            {messages.map(m => (
-              <MsgBubble key={m.id} msg={m} myId={myId} />
-            ))}
-            <div ref={chatEndRef} />
-          </div>
-
-          {/* Input + mic */}
-          <div style={{
-            display: "flex", gap: 10, marginTop: 12,
-            alignItems: "flex-end",
-          }}>
-            {/* Mic toggle */}
-            <button onClick={toggleMic} disabled={myMuted} style={{
-              flexShrink: 0, width: 44, height: 44, borderRadius: "50%",
-              border: "none", cursor: myMuted ? "not-allowed" : "pointer",
-              background: micOn
-                ? `linear-gradient(135deg, ${BRAND_ORANGE}, #FF6B3D)`
-                : "var(--secondary)",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              boxShadow: micOn ? "0 4px 14px rgba(255,77,46,0.4)" : "none",
-              transition: "all 0.2s", opacity: myMuted ? 0.5 : 1,
-            }}>
-              {micOn
-                ? <Mic className="w-5 h-5 text-white" />
-                : <MicOff className="w-5 h-5" style={{ color: myMuted ? "var(--muted-foreground)" : BRAND_ORANGE }} />
-              }
-            </button>
-
-            {/* Chat input */}
-            <div style={{ flex: 1, display: "flex", gap: 8, alignItems: "center" }}>
-              <input
-                value={chatInput}
-                onChange={e => setInput(e.target.value)}
-                onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMsg(); } }}
-                placeholder={myMuted ? "You are muted" : "Type a message…"}
-                disabled={myMuted}
-                style={{
-                  flex: 1, background: "var(--secondary)", border: "1px solid var(--border)",
-                  borderRadius: 14, padding: "11px 16px", fontSize: 14, outline: "none",
-                  color: "var(--foreground)", fontFamily: "'Space Grotesk', sans-serif",
-                  opacity: myMuted ? 0.5 : 1,
-                }}
-              />
-              <button onClick={sendMsg} disabled={!chatInput.trim() || !wsReady} style={{
-                flexShrink: 0, width: 44, height: 44, borderRadius: "50%",
-                border: "none", cursor: !chatInput.trim() ? "not-allowed" : "pointer",
-                background: chatInput.trim()
-                  ? `linear-gradient(135deg, ${BRAND_ORANGE}, #FF6B3D)`
-                  : "var(--secondary)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                transition: "all 0.2s",
-              }}>
-                <Send className={`w-4 h-4 ${chatInput.trim() ? "text-white" : "text-muted-foreground"}`} />
-              </button>
             </div>
           </div>
+        )}
 
-          {/* Status bar */}
-          <div style={{
-            display: "flex", alignItems: "center", gap: 8, marginTop: 8,
-            fontSize: 11, color: "var(--muted-foreground)",
-          }}>
-            <div style={{
-              width: 6, height: 6, borderRadius: "50%",
-              background: wsReady ? "oklch(0.65 0.22 150)" : "oklch(0.6 0.22 25)",
-            }} />
-            {wsReady ? "Connected" : "Connecting…"}
-            {myMuted && (
-              <span style={{
-                marginLeft: 8, color: "oklch(0.6 0.22 25)", fontWeight: 600,
-                display: "flex", alignItems: "center", gap: 4,
-              }}>
-                <MicOff className="w-3 h-3" /> Muted by admin
-              </span>
-            )}
-            {micOn && !myMuted && (
-              <span style={{ marginLeft: 8, color: "oklch(0.65 0.22 150)", fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
-                <Mic className="w-3 h-3" /> Mic on
-              </span>
-            )}
+        {/* Admin: hand requests */}
+        {isAdminOrMod && handReqs.length > 0 && (
+          <div style={{ margin: "16px", padding: "14px 16px", borderRadius: 18, background: "rgba(255,107,53,0.07)", border: "1px solid rgba(255,107,53,0.18)" }}>
+            <p style={{ color: "#ff9966", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10, marginTop: 0 }}>
+              ✋ Raise Hand Requests
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {handReqs.map(r => (
+                <div key={r.userId} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <span style={{ color: "rgba(255,255,255,0.65)", fontSize: 13 }}>@{r.username}</span>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button onClick={() => wsClient.approveSpeaker(roomId, r.userId)} style={{ padding: "5px 14px", borderRadius: 20, border: "none", cursor: "pointer", background: "linear-gradient(135deg,#ff6b35,#e63000)", color: "white", fontSize: 12, fontWeight: 600 }}>
+                      ✓ Let Speak
+                    </button>
+                    <button onClick={() => { wsClient.lowerHand(roomId); setHandReqs(p => p.filter(x => x.userId !== r.userId)); }} style={{ padding: "5px 12px", borderRadius: 20, border: "none", cursor: "pointer", background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.45)", fontSize: 12 }}>
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Chat messages */}
+        <div style={{ padding: "12px 16px 0" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+            <span style={{ color: "rgba(255,255,255,0.25)", fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em" }}>
+              💬 Chat
+            </span>
+            <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.04)" }} />
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            {messages.slice(-40).map(m => <MsgBubble key={m.id} msg={m} />)}
+            <div ref={chatEndRef} />
           </div>
         </div>
       </div>
+
+      {/* ── Floating action bar ──────────────────────── */}
+      <div style={{
+        position: "absolute", bottom: 0, left: 0, right: 0,
+        padding: "10px 16px 28px",
+        background: "linear-gradient(to top, rgba(10,6,28,0.98) 70%, transparent)",
+        backdropFilter: "blur(12px)",
+      }}>
+        {/* Chat input */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+          <input
+            ref={inputRef}
+            value={chatInput}
+            onChange={e => setChatInput(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && sendChat()}
+            placeholder="Say something…"
+            style={{
+              flex: 1, borderRadius: 24, padding: "10px 16px",
+              background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.1)",
+              color: "white", fontSize: 13, outline: "none",
+            }}
+          />
+          <button onClick={sendChat} disabled={!chatInput.trim()}
+            style={{
+              width: 38, height: 38, borderRadius: "50%", border: "none", cursor: "pointer",
+              background: chatInput.trim() ? "linear-gradient(135deg,#ff6b35,#e63000)" : "rgba(255,255,255,0.07)",
+              color: "white", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center",
+            }}>➤</button>
+        </div>
+
+        {/* Action buttons */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-around" }}>
+          {!isOnStage ? (
+            /* Audience: Raise hand */
+            <ActionBtn
+              emoji={myHandRaised ? "✋" : "🙋"}
+              label={myHandRaised ? "Lower Hand" : "Request Speak"}
+              active={myHandRaised}
+              onClick={handleRaiseHand}
+            />
+          ) : (
+            <>
+              <ActionBtn emoji={micOn ? "🎙️" : "🔇"} label={micOn ? "Mic On" : "Mic Off"} active={micOn} onClick={toggleMic} />
+              <ActionBtn emoji="⬇️" label="Step Down" onClick={handleStepDown} />
+            </>
+          )}
+          {isAdminOrMod && (
+            <ActionBtn emoji="⚡" label="Challenge" onClick={() => wsClient.requestChallenge(roomId)} />
+          )}
+          <ActionBtn emoji="🚪" label="Leave" danger onClick={handleLeave} />
+        </div>
+      </div>
+
+      {/* Member sheet */}
+      {selected && (
+        <MemberSheet
+          member={selected} myRole={myRole} isOnStage={speakers.has(selected.userId)}
+          onClose={() => setSelected(null)}
+          onApprove={() => wsClient.approveSpeaker(roomId, selected.userId)}
+          onRemoveStage={() => wsClient.removeSpeaker(roomId, selected.userId)}
+          onMute={() => wsClient.muteUser(roomId, selected.userId, !selected.muted)}
+          onKick={() => { wsClient.kickUser(roomId, selected.userId); setSelected(null); }}
+        />
+      )}
     </div>
+  );
+}
+
+function ActionBtn({ emoji, label, active, danger, onClick }: { emoji: string; label: string; active?: boolean; danger?: boolean; onClick: () => void }) {
+  return (
+    <button onClick={onClick} style={{
+      display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+      padding: "8px 12px", borderRadius: 16, border: "none", cursor: "pointer",
+      background: danger ? "rgba(220,38,38,0.1)" : active ? "rgba(255,107,53,0.18)" : "rgba(255,255,255,0.07)",
+      outline: "none", transition: "all 0.2s",
+    }}>
+      <span style={{ fontSize: 20 }}>{emoji}</span>
+      <span style={{
+        fontSize: 10, color: danger ? "#f87171" : active ? "#ff6b35" : "rgba(255,255,255,0.4)",
+        whiteSpace: "nowrap",
+      }}>{label}</span>
+    </button>
   );
 }
